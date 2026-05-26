@@ -1,7 +1,9 @@
-import 'dart:convert'; 
+import 'dart:convert';
+import 'dart:io'; 
 import 'package:deslock/componentes/menulateral.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart'; 
 
 import 'telaadicionaramigos.dart'; 
 
@@ -15,14 +17,13 @@ class TelaVoce extends StatefulWidget {
 class _TelaVoceState extends State<TelaVoce> {
   String nome = 'Usuário';
   String usuario = '@usuario';
+  String? _caminhoFoto; 
 
   int nivel = 1;
   int xpAtual = 0;
   int xpMaximo = 200;
 
   bool carregando = true;
-  
-  // CORREÇÃO: Tipagem alterada para dynamic para aceitar int e String sem quebrar o app
   List<Map<String, dynamic>> listaDeAmigos = [];
 
   final Gradient _gradienteDourado = const LinearGradient(
@@ -43,11 +44,13 @@ class _TelaVoceState extends State<TelaVoce> {
     return texto.startsWith('@') ? texto : '@$texto';
   }
 
+  // Função central para buscar os dados salvos
   Future<void> _carregarDados() async {
     final prefs = await SharedPreferences.getInstance();
 
     final nomeSalvo = prefs.getString('nome_usuario');
     final usuarioSalvo = prefs.getString('user_usuario');
+    final fotoSalva = prefs.getString('foto_perfil'); 
     final amigosSalvosJson = prefs.getString('lista_amigos');
 
     if (!mounted) return;
@@ -55,35 +58,122 @@ class _TelaVoceState extends State<TelaVoce> {
     setState(() {
       nome = (nomeSalvo != null && nomeSalvo.trim().isNotEmpty) ? nomeSalvo.trim() : 'Usuário';
       usuario = _formatarUsuario(usuarioSalvo ?? '');
+      _caminhoFoto = fotoSalva; 
       nivel = prefs.getInt('nivel_usuario') ?? 1;
       xpAtual = prefs.getInt('xp_atual') ?? 0;
       xpMaximo = prefs.getInt('xp_maximo') ?? 200;
       
-      // CORREÇÃO: Mapeamento seguro convertendo os mapas internos para dynamic
       if (amigosSalvosJson != null) {
         final List<dynamic> listaDecodificada = jsonDecode(amigosSalvosJson);
         listaDeAmigos = listaDecodificada.map((e) => Map<String, dynamic>.from(e)).toList();
       } else {
-        // Lista padrão inicial com tipos mistos (String e int)
+        // Mock inicial se o usuário for novo
         listaDeAmigos = [
-          {'nome': 'Pietro', 'usuario': '@Pierre', 'nivel': 3},
-          {'nome': 'Julia Vitória', 'usuario': '@Júju', 'nivel': 4},
-          {'nome': 'Ana Beatriz', 'usuario': '@Aninha', 'nivel': 2},
+          {'nome': 'Luiz Fernando', 'usuario': '@Prizrak', 'nivel': 100},
+          {'nome': 'Pietro', 'usuario': '@Pierre', 'nivel': 45},
+          {'nome': 'Julia Vitória', 'usuario': '@Juju', 'nivel': 4},
+          {'nome': 'Matheus', 'usuario': '@bombado', 'nivel': 24},
+          {'nome': 'Ana Beatriz', 'usuario': '@Aninha', 'nivel': 1},
         ];
         _salvarAmigos();
       }
       
-      // Atualiza o contador de amigos total para a TelaInicio usar
       prefs.setInt('amigos_total', listaDeAmigos.length);
-
       carregando = false;
     });
+  }
+
+  // Função para abrir a galeria e salvar a escolha
+  Future<void> _escolherFoto() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+
+    if (image != null) {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _caminhoFoto = image.path;
+      });
+      // Salva o caminho para persistência
+      await prefs.setString('foto_perfil', image.path);
+      
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sua foto de perfil foi atualizada com sucesso!'),
+          backgroundColor: Color(0xFF188C0C),
+        )
+      );
+    }
   }
 
   Future<void> _salvarAmigos() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('lista_amigos', jsonEncode(listaDeAmigos));
     await prefs.setInt('amigos_total', listaDeAmigos.length);
+  }
+
+  // Alerta visual de confirmação antes de deletar o amigo
+  void _mostrarDialogoConfirmacao(int index) {
+    final nomeAmigo = listaDeAmigos[index]['nome'];
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF3C096C), 
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Color(0xFFFFD200)),
+              SizedBox(width: 8),
+              Text('Remover Amigo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Text(
+            'Tem certeza que deseja remover $nomeAmigo da sua lista de amigos?',
+            style: const TextStyle(color: Colors.white70, fontSize: 15),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context), 
+              child: const Text('Cancelar', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context); 
+                _removerAmigo(index);   
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                elevation: 0,
+              ),
+              child: const Text('Remover', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Função interna de remoção
+  void _removerAmigo(int index) async {
+    final nomeAmigo = listaDeAmigos[index]['nome'];
+    
+    setState(() {
+      listaDeAmigos.removeAt(index);
+    });
+    
+    await _salvarAmigos();
+    
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$nomeAmigo foi removido da sua lista de amigos.'),
+        backgroundColor: const Color(0xFF3C096C),
+      ),
+    );
   }
 
   @override
@@ -133,9 +223,31 @@ class _TelaVoceState extends State<TelaVoce> {
                           ),
                           Column(
                             children: [
-                              const CircleAvatar(radius: 24, backgroundColor: Color(0xFFD9D9D9), child: Icon(Icons.person, color: Colors.white, size: 30)),
+                              // GESTURE DETECTOR PARA ABRIR A FOTO DE PERFIL
+                              GestureDetector(
+                                onTap: _escolherFoto,
+                                child: Stack(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 26,
+                                      backgroundColor: const Color(0xFFD9D9D9),
+                                      backgroundImage: _caminhoFoto != null ? FileImage(File(_caminhoFoto!)) : null,
+                                      child: _caminhoFoto == null ? const Icon(Icons.person, color: Colors.white, size: 30) : null,
+                                    ),
+                                    Positioned(
+                                      bottom: 0,
+                                      right: 0,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: const BoxDecoration(color: Color(0xFF5B189A), shape: BoxShape.circle),
+                                        child: const Icon(Icons.camera_alt, color: Colors.white, size: 12),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                               const SizedBox(height: 4),
-                              Text('Nível $nivel', style: const TextStyle(color: Color(0xFF5B189A), fontWeight: FontWeight.w500)),
+                              Text('Nível $nivel', style: const TextStyle(color: Color(0xFF5B189A), fontWeight: FontWeight.bold)),
                             ],
                           ),
                         ],
@@ -223,16 +335,13 @@ class _TelaVoceState extends State<TelaVoce> {
                               
                               InkWell(
                                 onTap: () async {
-                                  final novoAmigo = await Navigator.push(
+                                  final atualizouBanco = await Navigator.push(
                                     context,
                                     MaterialPageRoute(builder: (_) => const TelaAdicionarAmigos()),
                                   );
 
-                                  if (novoAmigo != null) {
-                                    setState(() {
-                                      listaDeAmigos.add(novoAmigo);
-                                    });
-                                    await _salvarAmigos(); 
+                                  if (atualizouBanco == true) {
+                                    _carregarDados();
                                   }
                                 },
                                 borderRadius: BorderRadius.circular(20),
@@ -248,26 +357,37 @@ class _TelaVoceState extends State<TelaVoce> {
                           if (listaDeAmigos.isEmpty)
                             const Center(child: Padding(padding: EdgeInsets.all(16), child: Text('Sua lista de amigos está vazia.', style: TextStyle(color: Colors.grey))))
                           else
-                            ...listaDeAmigos.map((amigo) {
+                            ...listaDeAmigos.asMap().entries.map((entry) {
+                              int index = entry.key;
+                              var amigo = entry.value;
+
                               return Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 8.0),
                                 child: Row(
                                   children: [
                                     const CircleAvatar(radius: 20, backgroundColor: Color(0xFFD9D9D9), child: Icon(Icons.person, color: Colors.white)),
                                     const SizedBox(width: 12),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(amigo['nome'].toString(), style: const TextStyle(color: Color(0xFF5B189A), fontWeight: FontWeight.bold, fontSize: 15)),
-                                        Text(amigo['usuario'].toString(), style: const TextStyle(color: Colors.black54, fontSize: 13)),
-                                      ],
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(amigo['nome'].toString(), style: const TextStyle(color: Color(0xFF5B189A), fontWeight: FontWeight.bold, fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                          Text(amigo['usuario'].toString(), style: const TextStyle(color: Colors.black54, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                        ],
+                                      ),
                                     ),
-                                    const Spacer(),
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                       decoration: BoxDecoration(color: const Color(0xFF5B189A).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                                      // CORREÇÃO: .toString() para garantir a renderização de int ou String com segurança
                                       child: Text('Nível ${amigo['nivel'] ?? '1'}', style: const TextStyle(color: Color(0xFF5B189A), fontSize: 12, fontWeight: FontWeight.bold)),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    IconButton(
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                                      onPressed: () => _mostrarDialogoConfirmacao(index),
+                                      tooltip: 'Remover amigo',
                                     ),
                                   ],
                                 ),

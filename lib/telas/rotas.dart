@@ -1,8 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'telafavoritos.dart';
-import 'telavoce.dart';
+import 'telabase.dart'; 
 import 'telanavegacaoativa.dart'; 
-import 'telahistorico.dart'; // NOVO: Importe da Tela de Histórico
+import 'telahistorico.dart'; 
 
 class TelaRotas extends StatefulWidget {
   const TelaRotas({super.key});
@@ -14,12 +17,29 @@ class TelaRotas extends StatefulWidget {
 class _TelaRotasState extends State<TelaRotas> {
   final TextEditingController _searchController = TextEditingController();
 
-  // CONSTANTE DO GRADIENTE DOURADO
+  bool _mostrarCardDestino = false;
+  String _nomeDestinoPesquisado = "Escola Profissional Santo Agostinho";
+  String _modoSelecionado = 'carro'; 
+  String? _caminhoFoto; // Guarda o avatar real
+
   final Gradient _gradienteDourado = const LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [Color(0xFFFFD200), Color(0xFFDDA300)],
   );
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarFoto();
+  }
+
+  Future<void> _carregarFoto() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _caminhoFoto = prefs.getString('foto_perfil');
+    });
+  }
 
   @override
   void dispose() {
@@ -32,6 +52,40 @@ class _TelaRotasState extends State<TelaRotas> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void _pesquisarLocal(String valor) {
+    if (valor.trim().isEmpty) return;
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _nomeDestinoPesquisado = valor;
+      _mostrarCardDestino = true;
+    });
+  }
+
+  void _limparPesquisa() {
+    setState(() {
+      _searchController.clear();
+      _mostrarCardDestino = false;
+    });
+    FocusScope.of(context).unfocus();
+  }
+
+  Widget _botaoModo(IconData icone, String modo) {
+    bool selecionado = _modoSelecionado == modo;
+    return GestureDetector(
+      onTap: () => setState(() => _modoSelecionado = modo),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: selecionado ? const Color(0xFFFFD200) : Colors.white24,
+          shape: BoxShape.circle,
+          boxShadow: selecionado ? [const BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))] : [],
+        ),
+        child: Icon(icone, color: selecionado ? const Color(0xFF5B189A) : Colors.white, size: 24),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -40,26 +94,31 @@ class _TelaRotasState extends State<TelaRotas> {
         color: Colors.white,
         child: Stack(
           children: [
-            // Fundo do Mapa
-            Container(width: double.infinity, height: double.infinity, color: Colors.grey[300]),
-            
-            // Pino do Mapa Centralizado
+            Container(width: double.infinity, height: double.infinity, color: const Color(0xFFEAEAEA)),
+            Positioned.fill(child: CustomPaint(painter: _MapaRotasPainter())),
+
             Center(
               child: GestureDetector(
-                onTap: () => _mostrarAviso("Pino de localização selecionado!"),
-                child: const Icon(Icons.location_pin, size: 50, color: Color(0xFF5B189A)),
+                onTap: () {
+                  setState(() {
+                    _searchController.text = "Parque Central";
+                    _pesquisarLocal("Parque Central");
+                  });
+                },
+                child: const Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.location_on, size: 50, color: Color(0xFF5B189A)),
+                    SizedBox(height: 30),
+                  ],
+                ),
               ),
             ),
             
-            // Header (Busca, Foto e Filtros)
             Positioned(
               top: 0, left: 0, right: 0,
               child: Container(
-                decoration: BoxDecoration(
-                  gradient: _gradienteDourado,
-                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
-                  boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4))],
-                ),
+                decoration: BoxDecoration(gradient: _gradienteDourado, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4))]),
                 child: SafeArea(
                   bottom: false,
                   child: Padding(
@@ -72,8 +131,15 @@ class _TelaRotasState extends State<TelaRotas> {
                             Expanded(child: _buildSearchBar()),
                             const SizedBox(width: 16),
                             GestureDetector(
-                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaVoce())),
-                              child: const CircleAvatar(radius: 22, backgroundColor: Colors.white, child: Icon(Icons.person, color: Color(0xFF5B189A))),
+                              onTap: () {
+                                Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const TelaBase(initialIndex: 2)), (route) => false);
+                              },
+                              child: CircleAvatar(
+                                radius: 22, 
+                                backgroundColor: Colors.white, 
+                                backgroundImage: _caminhoFoto != null ? FileImage(File(_caminhoFoto!)) : null,
+                                child: _caminhoFoto == null ? const Icon(Icons.person, color: Color(0xFF5B189A)) : null,
+                              ),
                             ),
                           ],
                         ),
@@ -82,24 +148,9 @@ class _TelaRotasState extends State<TelaRotas> {
                           scrollDirection: Axis.horizontal,
                           child: Row(
                             children: [
-                              _filtro(
-                                icon: Icons.favorite_border, 
-                                texto: "Favoritos", 
-                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaFavoritos()))
-                              ),
+                              _filtro(icon: Icons.favorite_border, texto: "Favoritos", onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaFavoritos()))),
                               const SizedBox(width: 10),
-                              
-                              // MODIFICADO: Agora o botão aponta para a TelaHistorico de verdade!
-                              _filtro(
-                                icon: Icons.history, 
-                                texto: "Histórico", 
-                                onTap: () {
-                                  Navigator.push(
-                                    context, 
-                                    MaterialPageRoute(builder: (_) => const TelaHistorico()),
-                                  );
-                                }
-                              ),
+                              _filtro(icon: Icons.history, texto: "Histórico", onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaHistorico()))),
                             ],
                           ),
                         ),
@@ -110,96 +161,70 @@ class _TelaRotasState extends State<TelaRotas> {
               ),
             ),
 
-            // Card do Local (Base)
-            Positioned(
-              left: 16,
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.easeOutQuart,
               right: 16,
-              bottom: 90,
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const TelaNavegacaoAtiva()),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF5B189A),
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black26,
-                        blurRadius: 10,
-                        offset: Offset(0, 4),
+              bottom: _mostrarCardDestino ? 370 : 100, 
+              child: FloatingActionButton(
+                heroTag: 'btn_gps',
+                onPressed: () => _mostrarAviso('Centralizando mapa na sua localização...'),
+                backgroundColor: Colors.white,
+                mini: true,
+                child: const Icon(Icons.my_location, color: Color(0xFF5B189A)),
+              ),
+            ),
+
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.easeOutQuart,
+              left: 16, right: 16,
+              bottom: _mostrarCardDestino ? 90 : -550, 
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: const Color(0xFF5B189A), borderRadius: BorderRadius.circular(24), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 4))]),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Image.network(
+                        "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Escola.jpg/640px-Escola.jpg",
+                        height: 110, width: double.infinity, fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(height: 110, color: Colors.white24, child: const Center(child: Icon(Icons.location_city, color: Colors.white, size: 40))),
                       ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: Image.network(
-                          "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Escola.jpg/640px-Escola.jpg",
-                          height: 120,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
-                              height: 120,
-                              width: double.infinity,
-                              color: Colors.white24,
-                              child: const Center(
-                                child: CircularProgressIndicator(color: Colors.white),
-                              ),
-                            );
-                          },
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              height: 120,
-                              width: double.infinity,
-                              color: Colors.white24,
-                              child: const Center(
-                                child: Icon(Icons.broken_image, color: Colors.white, size: 40),
-                              ),
-                            );
-                          },
-                        ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(_nomeDestinoPesquisado, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 4),
+                    const Row(children: [Icon(Icons.star, color: Colors.yellow, size: 16), Icon(Icons.star, color: Colors.yellow, size: 16), Icon(Icons.star, color: Colors.yellow, size: 16), Icon(Icons.star, color: Colors.yellow, size: 16), Icon(Icons.star_half, color: Colors.yellow, size: 16), SizedBox(width: 6), Text("(4.8)", style: TextStyle(color: Colors.white70, fontSize: 12))]),
+                    const SizedBox(height: 14),
+                    const Text("Como pretende deslocar-se?", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _botaoModo(Icons.directions_car, 'carro'),
+                        _botaoModo(Icons.directions_bus, 'onibus'),
+                        _botaoModo(Icons.directions_walk, 'pe'),
+                        _botaoModo(Icons.pedal_bike, 'bicicleta'),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 42,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => TelaNavegacaoAtiva(destino: _nomeDestinoPesquisado, modo: _modoSelecionado)));
+                        },
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFD200), foregroundColor: const Color(0xFF5B189A), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
+                        icon: const Icon(Icons.directions, size: 18),
+                        label: const Text('Iniciar Rota', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                       ),
-                      const SizedBox(height: 14),
-                      const Text(
-                        "Escola Profissional Santo Agostinho",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      const Row(
-                        children: [
-                          Icon(Icons.star, color: Colors.yellow, size: 18),
-                          Icon(Icons.star, color: Colors.yellow, size: 18),
-                          Icon(Icons.star, color: Colors.yellow, size: 18),
-                          Icon(Icons.star, color: Colors.yellow, size: 18),
-                          Icon(Icons.star, color: Colors.yellow, size: 18),
-                          SizedBox(width: 8),
-                          Text(
-                            "(1000)",
-                            style: TextStyle(color: Colors.white70, fontSize: 13),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        "Instituição educacional",
-                        style: TextStyle(color: Colors.white70, fontSize: 13),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -215,17 +240,13 @@ class _TelaRotasState extends State<TelaRotas> {
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22)),
       child: TextField(
         controller: _searchController,
-        onSubmitted: (valor) {
-          if (valor.trim().isNotEmpty) _mostrarAviso("Buscando rotas para: $valor");
-        },
+        onSubmitted: _pesquisarLocal, 
         textInputAction: TextInputAction.search,
         decoration: InputDecoration(
           hintText: "Para onde vamos?",
           hintStyle: const TextStyle(color: Colors.black38),
           prefixIcon: const Icon(Icons.search, color: Color(0xFF5B189A)),
-          suffixIcon: _searchController.text.isNotEmpty
-              ? IconButton(icon: const Icon(Icons.clear, color: Colors.black38), onPressed: () { _searchController.clear(); setState(() {}); })
-              : null,
+          suffixIcon: _searchController.text.isNotEmpty ? IconButton(icon: const Icon(Icons.clear, color: Colors.black38), onPressed: _limparPesquisa) : null,
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 12),
         ),
@@ -239,12 +260,22 @@ class _TelaRotasState extends State<TelaRotas> {
       onPressed: onTap,
       icon: Icon(icon, size: 18, color: const Color(0xFF5B189A)),
       label: Text(texto, style: const TextStyle(color: Color(0xFF5B189A), fontWeight: FontWeight.w600)),
-      style: OutlinedButton.styleFrom(
-        backgroundColor: Colors.white.withOpacity(0.9),
-        side: const BorderSide(color: Color(0xFF5B189A), width: 1.2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      ),
+      style: OutlinedButton.styleFrom(backgroundColor: Colors.white.withOpacity(0.9), side: const BorderSide(color: Color(0xFF5B189A), width: 1.2), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10)),
     );
   }
+}
+
+class _MapaRotasPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rua = Paint()..color = Colors.white..strokeWidth = 8..style = PaintingStyle.stroke;
+    for (double y = 100; y < size.height; y += 150) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y + 50), rua);
+    }
+    for (double x = 50; x < size.width; x += 120) {
+      canvas.drawLine(Offset(x, 0), Offset(x - 30, size.height), rua);
+    }
+  }
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

@@ -1,6 +1,6 @@
-import 'dart:convert'; // NOVO: Necessário para transformar a lista em texto e vice-versa
+import 'dart:convert'; 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // NOVO: Para salvar os dados de verdade
+import 'package:shared_preferences/shared_preferences.dart'; 
 import 'telanovofavorito.dart';
 import 'telanavegacaoativa.dart'; 
 
@@ -19,7 +19,6 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
     colors: [Color(0xFFFFD200), Color(0xFFDDA300)],
   );
 
-  // Agora a lista começa vazia e será preenchida pelo SharedPreferences
   List<Map<String, dynamic>> favoritos = [];
   bool carregando = true;
 
@@ -29,20 +28,17 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
     _carregarFavoritos();
   }
 
-  // Função para ler do "banco de dados" do celular
   Future<void> _carregarFavoritos() async {
     final prefs = await SharedPreferences.getInstance();
     final stringFavoritos = prefs.getString('lista_favoritos');
 
     if (stringFavoritos != null) {
-      // Se já tem salvo, converte o texto de volta para lista
       final List<dynamic> listaDecodificada = jsonDecode(stringFavoritos);
       setState(() {
         favoritos = listaDecodificada.map((e) => Map<String, dynamic>.from(e)).toList();
         carregando = false;
       });
     } else {
-      // Se for a PRIMEIRA vez que abre, cria a lista padrão de exemplo e já salva
       setState(() {
         favoritos = [
           {
@@ -76,7 +72,6 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
     }
   }
 
-  // Função para gravar no "banco de dados" do celular
   Future<void> _salvarFavoritos() async {
     final prefs = await SharedPreferences.getInstance();
     final stringFavoritos = jsonEncode(favoritos);
@@ -90,7 +85,6 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
     );
   }
 
-  // Quando remover, salva a nova lista sem o item apagado
   void _removerFavorito(int index) async {
     setState(() {
       favoritos.removeAt(index);
@@ -99,14 +93,20 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
     _mostrarAviso('Favorito removido da lista');
   }
 
-  void _iniciarRotaDireta(String destino) {
+  // MODIFICADO: Agora recebe o destino E o modo de transporte escolhido!
+  void _iniciarRotaDireta(String destino, String modo) {
     _mostrarAviso('Iniciando rota segura para $destino...');
     
     Future.delayed(const Duration(milliseconds: 400), () {
       if (!mounted) return;
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const TelaNavegacaoAtiva()),
+        MaterialPageRoute(
+          builder: (_) => TelaNavegacaoAtiva(
+            destino: destino,
+            modo: modo, // Repassa a escolha para a tela do GPS
+          ),
+        ),
       );
     });
   }
@@ -246,7 +246,6 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
                                 ),
                               );
 
-                              // Se voltou com um item novo, adiciona na lista e SALVA NO BANCO
                               if (novoFavorito != null) {
                                 setState(() {
                                   favoritos.insert(0, novoFavorito); 
@@ -292,7 +291,8 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
                             segura: favoritos[i]['segura']!,
                             onDetalhes: () => _mostrarAviso('Abrindo detalhes de ${favoritos[i]['titulo']}...'),
                             onExcluir: () => _removerFavorito(i),
-                            onIniciar: () => _iniciarRotaDireta(favoritos[i]['titulo']!), 
+                            // Agora passa a string do modo escolhido na chamada
+                            onIniciar: (String modo) => _iniciarRotaDireta(favoritos[i]['titulo']!, modo), 
                           ),
                           const SizedBox(height: 14),
                         ],
@@ -308,7 +308,8 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
   }
 }
 
-class _CardFavorito extends StatelessWidget {
+// MODIFICADO: Agora é um StatefulWidget para guardar qual modo foi clicado neste card específico
+class _CardFavorito extends StatefulWidget {
   final String titulo;
   final String categoria;
   final String tempo;
@@ -316,7 +317,7 @@ class _CardFavorito extends StatelessWidget {
   final String avaliacao;
   final String segura;
   final VoidCallback onExcluir;
-  final VoidCallback onIniciar;
+  final Function(String modo) onIniciar; // Função atualizada para exigir a string do transporte
   final VoidCallback onDetalhes;
 
   const _CardFavorito({
@@ -330,6 +331,36 @@ class _CardFavorito extends StatelessWidget {
     required this.onIniciar,
     required this.onDetalhes,
   });
+
+  @override
+  State<_CardFavorito> createState() => _CardFavoritoState();
+}
+
+class _CardFavoritoState extends State<_CardFavorito> {
+  // Guarda a seleção local deste card. Padrão: carro
+  String _modoSelecionado = 'carro';
+
+  // Componente interno para desenhar as bolinhas de transporte
+  Widget _botaoModo(IconData icone, String modo) {
+    bool selecionado = _modoSelecionado == modo;
+    return GestureDetector(
+      onTap: () => setState(() => _modoSelecionado = modo),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: selecionado ? const Color(0xFFFFD200) : Colors.white24,
+          shape: BoxShape.circle,
+          boxShadow: selecionado ? [const BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))] : [],
+        ),
+        child: Icon(
+          icone,
+          color: selecionado ? const Color(0xFF5B189A) : Colors.white,
+          size: 22,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -362,7 +393,7 @@ class _CardFavorito extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  segura,
+                  widget.segura,
                   style: const TextStyle(
                     color: Color(0xFF5B189A),
                     fontWeight: FontWeight.w500,
@@ -371,7 +402,7 @@ class _CardFavorito extends StatelessWidget {
                 ),
                 const Spacer(),
                 InkWell(
-                  onTap: onExcluir,
+                  onTap: widget.onExcluir,
                   child: const Padding(
                     padding: EdgeInsets.all(4.0),
                     child: Icon(
@@ -386,7 +417,7 @@ class _CardFavorito extends StatelessWidget {
           ),
 
           InkWell(
-            onTap: onDetalhes,
+            onTap: widget.onDetalhes,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
               child: Column(
@@ -408,7 +439,7 @@ class _CardFavorito extends StatelessWidget {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      titulo,
+                      widget.titulo,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
@@ -427,7 +458,7 @@ class _CardFavorito extends StatelessWidget {
                       const Icon(Icons.star, color: Color(0xFFFFD200), size: 16),
                       const SizedBox(width: 4),
                       Text(
-                        avaliacao,
+                        widget.avaliacao,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 13,
@@ -435,7 +466,7 @@ class _CardFavorito extends StatelessWidget {
                       ),
                       const Spacer(),
                       Text(
-                        tempo,
+                        widget.tempo,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 24,
@@ -448,7 +479,7 @@ class _CardFavorito extends StatelessWidget {
                   Row(
                     children: [
                       Text(
-                        categoria,
+                        widget.categoria,
                         style: const TextStyle(
                           color: Color(0xFFD7D7D7),
                           fontSize: 12,
@@ -456,7 +487,7 @@ class _CardFavorito extends StatelessWidget {
                       ),
                       const Spacer(),
                       Text(
-                        distancia,
+                        widget.distancia,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 14,
@@ -464,12 +495,31 @@ class _CardFavorito extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  
+                  // NOVO: Seletores de Transporte
+                  const SizedBox(height: 14),
+                  const Text(
+                    "Como pretende deslocar-se?",
+                    style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _botaoModo(Icons.directions_car, 'carro'),
+                      _botaoModo(Icons.directions_bus, 'onibus'),
+                      _botaoModo(Icons.directions_walk, 'pe'),
+                      _botaoModo(Icons.pedal_bike, 'bicicleta'),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
                   SizedBox(
                     width: double.infinity,
-                    height: 28,
+                    height: 38,
                     child: ElevatedButton.icon(
-                      onPressed: onIniciar,
+                      // Passa a escolha atual do usuário de volta para a função principal
+                      onPressed: () => widget.onIniciar(_modoSelecionado),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: const Color(0xFF5B189A),
@@ -483,7 +533,7 @@ class _CardFavorito extends StatelessWidget {
                         size: 16,
                       ),
                       label: const Text(
-                        'Iniciar',
+                        'Iniciar Rota',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,

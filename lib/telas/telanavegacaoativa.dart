@@ -1,341 +1,321 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'telaavaliacaorotas.dart';
 
 class TelaNavegacaoAtiva extends StatefulWidget {
-  const TelaNavegacaoAtiva({super.key});
+  final String destino;
+  final String modo; 
+
+  const TelaNavegacaoAtiva({
+    super.key, 
+    this.destino = 'Escola Profissional Santo Agostinho',
+    this.modo = 'carro',
+  });
 
   @override
   State<TelaNavegacaoAtiva> createState() => _TelaNavegacaoAtivaState();
 }
 
-class _TelaNavegacaoAtivaState extends State<TelaNavegacaoAtiva> with TickerProviderStateMixin {
-  late AnimationController _animacaoUsuario;
-  int _instrucaoAtual = 0;
+class _TelaNavegacaoAtivaState extends State<TelaNavegacaoAtiva> with SingleTickerProviderStateMixin {
+  late AnimationController _animacaoController;
 
-  // CONSTANTE DO GRADIENTE DOURADO
   final Gradient _gradienteDourado = const LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [Color(0xFFFFD200), Color(0xFFDDA300)],
   );
 
-  // Lista de instruções simuladas para o GPS
-  final List<Map<String, dynamic>> _instrucoesNavegacao = [
-    {'texto': 'Siga em frente na Av. Principal', 'distancia': '400m', 'icone': Icons.arrow_upward},
-    {'texto': 'Vire à direita na Rua das Flores', 'distancia': '150m', 'icone': Icons.turn_right},
-    {'texto': 'Em frente, entre na rotunda', 'distancia': '1km', 'icone': Icons.loop},
-    {'texto': 'Chegou à Escola Profissional!', 'distancia': '0m', 'icone': Icons.place},
-  ];
-
   @override
   void initState() {
     super.initState();
-    // Animação para o ponto de localização do utilizador pulsar (efeito GPS real)
-    _animacaoUsuario = AnimationController(
+    // Controlador da velocidade da animação do fundo e do pulso do GPS
+    _animacaoController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 15),
-    )..repeat(reverse: true);
+      duration: const Duration(seconds: 2),
+    )..repeat();
   }
 
   @override
   void dispose() {
-    _animacaoUsuario.dispose();
+    _animacaoController.dispose();
     super.dispose();
   }
 
-  void _mudarInstrucaoSimulada() {
-    setState(() {
-      _instrucaoAtual = (_instrucaoAtual + 1) % _instrucoesNavegacao.length;
-    });
+  // Define qual ícone mostrar no GPS baseado no modo
+  IconData _getIconeModo() {
+    switch (widget.modo) {
+      case 'pe': return Icons.directions_walk;
+      case 'bicicleta': return Icons.pedal_bike;
+      case 'onibus': return Icons.directions_bus;
+      default: return Icons.directions_car;
+    }
   }
 
-  void _acionarBotaoPanico() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.red[900],
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
-            children: [
-              Icon(Icons.warning, color: Colors.white),
-              SizedBox(width: 8),
-              Text('ALERTA SOS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          content: const Text(
-            'Deseja enviar a sua localização em tempo real para o seu Contato de Emergência cadastrado?',
-            style: TextStyle(color: Colors.white),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar', style: TextStyle(color: Colors.white70)),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).clearSnackBars();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    backgroundColor: Colors.red,
-                    content: Text('SOS Ativado! Alerta enviado para o seu contato de emergência.'),
-                  ),
-                );
-              },
-              child: const Text('ENVIAR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  Future<void> _finalizarViagem() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Salva no histórico com o modo escolhido
+      final novaViagem = {
+        'destino': widget.destino, 
+        'data': 'Hoje, às ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+        'xp_ganho': '+25 XP',
+        'origem': 'Minha Casa',
+        'status_seguranca': 'Segura',
+        'modo': widget.modo,
+      };
 
-  void _finalizarRota() {
-    // Fecha a navegação ativa e empilha a tela de avaliação de rota
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const TelaAvaliacaoRota()),
-    );
+      final String? historicoJson = prefs.getString('lista_historico');
+      List<dynamic> lista = historicoJson != null ? jsonDecode(historicoJson) : [];
+      lista.insert(0, novaViagem);
+      await prefs.setString('lista_historico', jsonEncode(lista));
+
+      // Atualiza XP global
+      int xp = (prefs.getInt('xp_atual') ?? 0) + 25;
+      await prefs.setInt('xp_atual', xp);
+
+    } catch (e) {
+      debugPrint('Erro ao salvar: $e');
+    }
+
+    if (!mounted) return;
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const TelaAvaliacaoRota()));
   }
 
   @override
   Widget build(BuildContext context) {
-    final instrucao = _instrucoesNavegacao[_instrucaoAtual];
+    // Lógica para decidir qual fundo usar
+    bool usaEstrada = widget.modo == 'carro' || widget.modo == 'onibus';
 
     return Scaffold(
-      body: Stack(
-        children: [
-          // 1. FUNDO DO MAPA NATIVO (Simulado em movimento com CustomPaint)
-          Positioned.fill(
-            child: AnimatedBuilder(
-              animation: _animacaoUsuario,
-              builder: (context, child) {
-                return CustomPaint(
-                  painter: _MapaNavegacaoPainter(offsetAnimacao: _animacaoUsuario.value),
-                );
-              },
-            ),
-          ),
-
-          // PONTO CENTRAL DO UTILIZADOR (Seta clássica de GPS)
-          Center(
-            child: Container(
-              padding: const EdgeInsets.all(8),
+      backgroundColor: const Color(0xFFEAEAEA),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Cabeçalho de Navegação
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF5B189A).withOpacity(0.2),
+                gradient: _gradienteDourado,
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
               ),
-              child: const Icon(
-                Icons.navigation,
-                size: 36,
-                color: Color(0xFF5B189A),
-              ),
-            ),
-          ),
-
-          // 2. PAINEL SUPERIOR: Instrução do GPS (Clicável para simular mudança de ruas)
-          Positioned(
-            top: 0, left: 0, right: 0,
-            child: SafeArea(
-              child: GestureDetector(
-                onTap: _mudarInstrucaoSimulada,
-                child: Container(
-                  margin: const EdgeInsets.all(16),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF3C096C), // Roxo escuro para contraste
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 4))],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFD200).withOpacity(0.2),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(instrucao['icone'], color: const Color(0xFFFFD200), size: 28),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              instrucao['texto'],
-                              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 2),
-                            const Text('Toque aqui para simular o trajeto', style: TextStyle(color: Colors.white38, fontSize: 11)),
-                          ],
-                        ),
-                      ),
-                      Text(
-                        instrucao['distancia'],
-                        style: const TextStyle(color: Color(0xFFFFD200), fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // 3. BOTÃO DE PÂNICO / SOS FLUTUANTE (Fica logo acima do painel inferior)
-          Positioned(
-            right: 16,
-            bottom: 190,
-            child: FloatingActionButton(
-              onPressed: _acionarBotaoPanico,
-              backgroundColor: Colors.red,
-              elevation: 6,
-              child: const Icon(Icons.sos, color: Colors.white, size: 32),
-            ),
-          ),
-
-          // 4. PAINEL INFERIOR: Status da Viagem e Botão de Finalizar
-          Positioned(
-            left: 0, right: 0, bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 15, offset: Offset(0, -4))],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              child: Row(
                 children: [
-                  // Métricas da Rota
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Row(
-                            children: [
-                              Text(
-                                '18',
-                                style: TextStyle(color: Color(0xFF5B189A), fontSize: 32, fontWeight: FontWeight.bold, height: 1),
-                              ),
-                              Text(
-                                ' min',
-                                style: TextStyle(color: Color(0xFF5B189A), fontSize: 16, fontWeight: FontWeight.bold),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text('4,2 km · Chegada: 12:50', style: TextStyle(color: Colors.grey[600], fontSize: 13, fontWeight: FontWeight.w500)),
-                        ],
-                      ),
-                      // Tag de Rota Segura
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF188C0C).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.shield, color: Color(0xFF188C0C), size: 16),
-                            SizedBox(width: 6),
-                            Text(
-                              'Rota Segura',
-                              style: TextStyle(color: Color(0xFF188C0C), fontWeight: FontWeight.bold, fontSize: 13),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // BOTÃO DE CHEGADA COM GRADIENTE DOURADO
-                  Container(
-                    width: double.infinity,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      gradient: _gradienteDourado,
-                      borderRadius: BorderRadius.circular(25),
-                      boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
-                    ),
-                    child: ElevatedButton(
-                      onPressed: _finalizarRota,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
-                      ),
-                      child: const Text(
-                        'Finalizar Trajeto',
-                        style: TextStyle(color: Color(0xFF5B189A), fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
+                  Icon(_getIconeModo(), color: const Color(0xFF5B189A)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Indo para: ${widget.destino}',
+                      style: const TextStyle(color: Color(0xFF5B189A), fontWeight: FontWeight.bold, fontSize: 16),
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+
+            // MAPA DINÂMICO CONTEXTUAL
+            Expanded(
+              child: Stack(
+                children: [
+                  // Troca o Painter baseado no modo
+                  Positioned.fill(
+                    child: AnimatedBuilder(
+                      animation: _animacaoController,
+                      builder: (context, child) {
+                        return CustomPaint(
+                          painter: usaEstrada 
+                            ? _EstradaPainter(_animacaoController.value) 
+                            : _CidadePainter(_animacaoController.value), // O design original da cidade voltou!
+                        );
+                      },
+                    ),
+                  ),
+                  
+                  // Selo de Rota Monitorada
+                  Positioned(
+                    top: 16,
+                    left: 16,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.security, color: Colors.white, size: 16),
+                          SizedBox(width: 6),
+                          Text(
+                            'Rota Monitorada',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Pino do GPS Animado (Pulsando)
+                  Center(
+                    child: AnimatedBuilder(
+                      animation: _animacaoController,
+                      builder: (context, child) {
+                        final pulso = 1.0 + (_animacaoController.value <= 0.5 
+                            ? _animacaoController.value 
+                            : (1.0 - _animacaoController.value)) * 0.3;
+
+                        return Container(
+                          width: 60 * pulso,
+                          height: 60 * pulso,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFF5B189A).withOpacity(0.2),
+                          ),
+                          child: Center(
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF5B189A),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 3),
+                                boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))],
+                              ),
+                              child: Icon(_getIconeModo(), color: Colors.white, size: 24),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Painel Inferior de Chegada
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                color: Color(0xFF5B189A),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _metrica('Tempo', usaEstrada ? '23 min' : '55 min'),
+                      _metrica('Distância', '5.6 km'),
+                      _metrica('Segurança', 'Alta'),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: _finalizarViagem,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      icon: const Icon(Icons.stop_circle_outlined, size: 20),
+                      label: const Text('Cheguei ao Destino', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _metrica(String label, String valor) {
+    return Column(
+      children: [
+        Text(valor, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+      ],
     );
   }
 }
 
-// PAINTER: Desenha o mapa de navegação simulando movimento contínuo
-class _MapaNavegacaoPainter extends CustomPainter {
-  final double offsetAnimacao;
-  _MapaNavegacaoPainter({required this.offsetAnimacao});
+// PAINTER 1: ESTRADA (Para Carro/Ônibus)
+class _EstradaPainter extends CustomPainter {
+  final double progresso;
+  _EstradaPainter(this.progresso);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final fundo = Paint()..color = const Color(0xFFEFEFEF);
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), fundo);
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), Paint()..color = const Color(0xFFEAEAEA));
 
-    final ruaPrincipal = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 32
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+    final asfalto = Paint()..color = const Color(0xFFD5D5D5)..strokeWidth = 80..style = PaintingStyle.stroke;
+    canvas.drawLine(Offset(size.width/2, 0), Offset(size.width/2, size.height), asfalto);
 
-    final linhaCentralRua = Paint()
-      ..color = const Color(0xFF5B189A).withOpacity(0.4)
-      ..strokeWidth = 4
-      ..style = PaintingStyle.stroke;
+    final bordaRua = Paint()..color = Colors.white..strokeWidth = 4..style = PaintingStyle.stroke;
+    canvas.drawLine(Offset(size.width/2 - 35, 0), Offset(size.width/2 - 35, size.height), bordaRua);
+    canvas.drawLine(Offset(size.width/2 + 35, 0), Offset(size.width/2 + 35, size.height), bordaRua);
 
-    // Deslocamento simulado baseado na animação para parecer que o utilizador está a andar
-    double movimentoY = offsetAnimacao * 120;
-
-    // Desenha uma grande avenida vertical cruzando o ecrã
-    Path rotaVertical = Path();
-    rotaVertical.moveTo(size.width / 2, -200 + movimentoY);
-    rotaVertical.lineTo(size.width / 2, size.height + 200 + movimentoY);
-    canvas.drawPath(rotaVertical, ruaPrincipal);
-    canvas.drawPath(rotaVertical, linhaCentralRua);
-
-    // Desenha ruas transversais secundárias
-    final ruaSecundaria = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 20
-      ..style = PaintingStyle.stroke;
-
-    canvas.drawLine(Offset(0, 150 + movimentoY), Offset(size.width, 150 + movimentoY), ruaSecundaria);
-    canvas.drawLine(Offset(0, 500 + movimentoY), Offset(size.width, 500 + movimentoY), ruaSecundaria);
-    canvas.drawLine(Offset(0, -200 + movimentoY), Offset(size.width, -200 + movimentoY), ruaSecundaria);
-
-    // Áreas Verdes de Segurança (Parques simulados)
-    final parqueSeguro = Paint()..color = const Color(0xFFCFE8C8).withOpacity(0.7);
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(40, 220 + movimentoY, 100, 140), const Radius.circular(12)), parqueSeguro);
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(size.width - 140, ThreadLocalSecureY(movimentoY), 100, 120), const Radius.circular(12)), parqueSeguro);
+    final faixa = Paint()..color = Colors.white..strokeWidth = 4;
+    double step = 50;
+    double offset = progresso * step;
+    for (double y = -step + offset; y < size.height; y += step) {
+      canvas.drawLine(Offset(size.width/2, y), Offset(size.width/2, y + 25), faixa);
+    }
   }
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
 
-  double ThreadLocalSecureY(double mY) {
-    return -50 + mY;
-  }
+// PAINTER 2: CIDADE/BAIRRO (Para Pé/Bicicleta) - Design Original Melhorado e Animado!
+class _CidadePainter extends CustomPainter {
+  final double progresso;
+  _CidadePainter(this.progresso);
 
   @override
-  bool shouldRepaint(covariant _MapaNavegacaoPainter oldDelegate) => true;
+  void paint(Canvas canvas, Size size) {
+    // Fundo cinza claro
+    final fundo = Paint()..color = const Color(0xFFE9E9E9);
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), fundo);
+    
+    final rua = Paint()..color = const Color(0xFFD5D5D5)..strokeWidth = 10..style = PaintingStyle.stroke;
+    final quadra = Paint()..color = const Color(0xFFF3F3F3)..style = PaintingStyle.fill;
+    final parque = Paint()..color = const Color(0xFFCFE8C8)..style = PaintingStyle.fill;
+    
+    double passoY = 140; // Distância entre as ruas horizontais
+    double passoX = 110; // Distância entre as ruas verticais
+    
+    // A mágica da animação: faz as ruas deslizarem para baixo perfeitamente
+    double offset = progresso * passoY;
+    
+    // Desenha Ruas Verticais (levemente inclinadas para charme)
+    for (double x = -50; x < size.width + 100; x += passoX) {
+      canvas.drawLine(Offset(x, -50), Offset(x - 20, size.height + 50), rua);
+    }
+    
+    // Desenha Ruas Horizontais e as Quadras/Parques
+    for (double y = -passoY + offset; y < size.height + passoY; y += passoY) {
+      canvas.drawLine(Offset(-50, y), Offset(size.width + 50, y + 15), rua);
+      
+      for (double x = 10; x < size.width; x += passoX) {
+        // Lógica simples para transformar algumas quadras em parques verdinhos
+        bool isParque = (x > 100 && (y % 280) < 100); 
+        
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(Rect.fromLTWH(x, y + 15, 70, 90), const Radius.circular(12)), 
+          isParque ? parque : quadra
+        );
+      }
+    }
+  }
+  
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
