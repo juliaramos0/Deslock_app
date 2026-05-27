@@ -16,11 +16,12 @@ class TelaRotas extends StatefulWidget {
 
 class _TelaRotasState extends State<TelaRotas> {
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _origemController = TextEditingController(text: "Sua localização atual");
 
   bool _mostrarCardDestino = false;
   String _nomeDestinoPesquisado = "Escola Profissional Santo Agostinho";
   String _modoSelecionado = 'carro'; 
-  String? _caminhoFoto; // Guarda o avatar real
+  String? _caminhoFoto; 
 
   final Gradient _gradienteDourado = const LinearGradient(
     begin: Alignment.topLeft,
@@ -44,6 +45,7 @@ class _TelaRotasState extends State<TelaRotas> {
   @override
   void dispose() {
     _searchController.dispose();
+    _origemController.dispose(); 
     super.dispose();
   }
 
@@ -56,6 +58,7 @@ class _TelaRotasState extends State<TelaRotas> {
     if (valor.trim().isEmpty) return;
     FocusScope.of(context).unfocus();
     setState(() {
+      _searchController.text = valor; // Garante que o texto fica no campo
       _nomeDestinoPesquisado = valor;
       _mostrarCardDestino = true;
     });
@@ -64,6 +67,7 @@ class _TelaRotasState extends State<TelaRotas> {
   void _limparPesquisa() {
     setState(() {
       _searchController.clear();
+      _origemController.text = "Sua localização atual"; // Reseta para o padrão
       _mostrarCardDestino = false;
     });
     FocusScope.of(context).unfocus();
@@ -94,14 +98,15 @@ class _TelaRotasState extends State<TelaRotas> {
         color: Colors.white,
         child: Stack(
           children: [
+            // MAPA DE FUNDO
             Container(width: double.infinity, height: double.infinity, color: const Color(0xFFEAEAEA)),
             Positioned.fill(child: CustomPaint(painter: _MapaRotasPainter())),
 
+            // PINO CENTRAL DO MAPA
             Center(
               child: GestureDetector(
                 onTap: () {
                   setState(() {
-                    _searchController.text = "Parque Central";
                     _pesquisarLocal("Parque Central");
                   });
                 },
@@ -115,10 +120,16 @@ class _TelaRotasState extends State<TelaRotas> {
               ),
             ),
             
+            // CABEÇALHO SUPERIOR INTELIGENTE (ESTILO GOOGLE MAPS)
             Positioned(
               top: 0, left: 0, right: 0,
-              child: Container(
-                decoration: BoxDecoration(gradient: _gradienteDourado, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4))]),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                decoration: BoxDecoration(
+                  gradient: _gradienteDourado, 
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)), 
+                  boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4))]
+                ),
                 child: SafeArea(
                   bottom: false,
                   child: Padding(
@@ -126,34 +137,110 @@ class _TelaRotasState extends State<TelaRotas> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(child: _buildSearchBar()),
-                            const SizedBox(width: 16),
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const TelaBase(initialIndex: 2)), (route) => false);
-                              },
-                              child: CircleAvatar(
-                                radius: 22, 
-                                backgroundColor: Colors.white, 
-                                backgroundImage: _caminhoFoto != null ? FileImage(File(_caminhoFoto!)) : null,
-                                child: _caminhoFoto == null ? const Icon(Icons.person, color: Color(0xFF5B189A)) : null,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
+                        // SE NÃO ESTIVER EM MODO ROTA: Mostra barra simples + Foto de Perfil
+                        if (!_mostrarCardDestino) ...[
+                          Row(
                             children: [
-                              _filtro(icon: Icons.favorite_border, texto: "Favoritos", onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaFavoritos()))),
-                              const SizedBox(width: 10),
-                              _filtro(icon: Icons.history, texto: "Histórico", onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaHistorico()))),
+                              Expanded(child: _buildSearchBar()),
+                              const SizedBox(width: 16),
+                              GestureDetector(
+                                onTap: () {
+                                  Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const TelaBase(initialIndex: 2)), (route) => false);
+                                },
+                                child: CircleAvatar(
+                                  radius: 22, 
+                                  backgroundColor: Colors.white, 
+                                  backgroundImage: _caminhoFoto != null ? FileImage(File(_caminhoFoto!)) : null,
+                                  child: _caminhoFoto == null ? const Icon(Icons.person, color: Color(0xFF5B189A)) : null,
+                                ),
+                              ),
                             ],
                           ),
-                        ),
+                          const SizedBox(height: 16),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _filtro(icon: Icons.favorite_border, texto: "Favoritos", onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaFavoritos()))),
+                                const SizedBox(width: 10),
+                                _filtro(icon: Icons.history, texto: "Histórico", onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaHistorico()))),
+                              ],
+                            ),
+                          ),
+                        ] 
+                        // SE ESTIVER EM MODO ROTA: Expande o cabeçalho em duas caixas (IGUAL GOOGLE MAPS!)
+                        else ...[
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.arrow_back, color: Color(0xFF5B189A)),
+                                onPressed: _limparPesquisa,
+                              ),
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      // Linha do tempo esquerda ligando os pontos
+                                      Column(
+                                        children: [
+                                          const Icon(Icons.radio_button_checked, color: Color(0xFF5B189A), size: 16),
+                                          Container(height: 24, width: 2, color: Colors.black12),
+                                          const Icon(Icons.location_on, color: Colors.redAccent, size: 16),
+                                        ],
+                                      ),
+                                      const SizedBox(width: 14),
+                                      // Campos de texto empilhados
+                                      Expanded(
+                                        child: Column(
+                                          children: [
+                                            // PONTO DE PARTIDA (MANUAL)
+                                            SizedBox(
+                                              height: 30,
+                                              child: TextField(
+                                                controller: _origemController,
+                                                style: const TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.w500),
+                                                decoration: const InputDecoration(
+                                                  hintText: "Escolher ponto de partida",
+                                                  hintStyle: TextStyle(color: Colors.black38, fontSize: 14),
+                                                  border: InputBorder.none,
+                                                  isDense: true,
+                                                  contentPadding: EdgeInsets.zero,
+                                                ),
+                                              ),
+                                            ),
+                                            const Divider(height: 10, color: Colors.black12),
+                                            // DESTINO (MANUAL)
+                                            SizedBox(
+                                              height: 30,
+                                              child: TextField(
+                                                controller: _searchController,
+                                                onSubmitted: _pesquisarLocal,
+                                                style: const TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.bold),
+                                                decoration: const InputDecoration(
+                                                  hintText: "Escolher destino",
+                                                  hintStyle: TextStyle(color: Colors.black38, fontSize: 14),
+                                                  border: InputBorder.none,
+                                                  isDense: true,
+                                                  contentPadding: EdgeInsets.zero,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -161,11 +248,12 @@ class _TelaRotasState extends State<TelaRotas> {
               ),
             ),
 
+            // MIRA DO GPS (FAB)
             AnimatedPositioned(
               duration: const Duration(milliseconds: 500),
               curve: Curves.easeOutQuart,
               right: 16,
-              bottom: _mostrarCardDestino ? 370 : 100, 
+              bottom: _mostrarCardDestino ? 350 : 100, 
               child: FloatingActionButton(
                 heroTag: 'btn_gps',
                 onPressed: () => _mostrarAviso('Centralizando mapa na sua localização...'),
@@ -175,11 +263,12 @@ class _TelaRotasState extends State<TelaRotas> {
               ),
             ),
 
+            // CARD DO DESTINO (MAIS LIMPO E FOCADO)
             AnimatedPositioned(
               duration: const Duration(milliseconds: 500),
               curve: Curves.easeOutQuart,
               left: 16, right: 16,
-              bottom: _mostrarCardDestino ? 90 : -550, 
+              bottom: _mostrarCardDestino ? 80 : -600, 
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(color: const Color(0xFF5B189A), borderRadius: BorderRadius.circular(24), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 4))]),
@@ -191,15 +280,21 @@ class _TelaRotasState extends State<TelaRotas> {
                       borderRadius: BorderRadius.circular(14),
                       child: Image.network(
                         "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Escola.jpg/640px-Escola.jpg",
-                        height: 110, width: double.infinity, fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(height: 110, color: Colors.white24, child: const Center(child: Icon(Icons.location_city, color: Colors.white, size: 40))),
+                        height: 100, width: double.infinity, fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(height: 100, color: Colors.white24, child: const Center(child: Icon(Icons.location_city, color: Colors.white, size: 40))),
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Text(_nomeDestinoPesquisado, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 4),
-                    const Row(children: [Icon(Icons.star, color: Colors.yellow, size: 16), Icon(Icons.star, color: Colors.yellow, size: 16), Icon(Icons.star, color: Colors.yellow, size: 16), Icon(Icons.star, color: Colors.yellow, size: 16), Icon(Icons.star_half, color: Colors.yellow, size: 16), SizedBox(width: 6), Text("(4.8)", style: TextStyle(color: Colors.white70, fontSize: 12))]),
-                    const SizedBox(height: 14),
+                    
+                    // NOME DO DESTINO EM DESTAQUE
+                    Text(
+                      _nomeDestinoPesquisado, 
+                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold), 
+                      maxLines: 1, 
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 12),
+                    
                     const Text("Como pretende deslocar-se?", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
                     const SizedBox(height: 8),
                     Row(
@@ -217,7 +312,16 @@ class _TelaRotasState extends State<TelaRotas> {
                       height: 42,
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => TelaNavegacaoAtiva(destino: _nomeDestinoPesquisado, modo: _modoSelecionado)));
+                          Navigator.push(
+                            context, 
+                            MaterialPageRoute(
+                              builder: (_) => TelaNavegacaoAtiva(
+                                origem: _origemController.text, // ENVIANDO A ORIGEM EDITADA
+                                destino: _searchController.text, // ENVIANDO O DESTINO EDITADO
+                                modo: _modoSelecionado,
+                              ),
+                            ),
+                          );
                         },
                         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFD200), foregroundColor: const Color(0xFF5B189A), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
                         icon: const Icon(Icons.directions, size: 18),

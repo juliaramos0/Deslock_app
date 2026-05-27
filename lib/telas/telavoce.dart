@@ -44,7 +44,6 @@ class _TelaVoceState extends State<TelaVoce> {
     return texto.startsWith('@') ? texto : '@$texto';
   }
 
-  // Função central para buscar os dados salvos
   Future<void> _carregarDados() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -67,13 +66,13 @@ class _TelaVoceState extends State<TelaVoce> {
         final List<dynamic> listaDecodificada = jsonDecode(amigosSalvosJson);
         listaDeAmigos = listaDecodificada.map((e) => Map<String, dynamic>.from(e)).toList();
       } else {
-        // Mock inicial se o usuário for novo
         listaDeAmigos = [
           {'nome': 'Luiz Fernando', 'usuario': '@Prizrak', 'nivel': 100},
-          {'nome': 'Pietro', 'usuario': '@Pierre', 'nivel': 45},
+          {'nome': 'Matheus', 'usuario': '@Bombado', 'nivel': 24},
+          {'nome': 'Pietro', 'usuario': '@Pierre', 'nivel': 50},
           {'nome': 'Julia Vitória', 'usuario': '@Juju', 'nivel': 4},
-          {'nome': 'Matheus', 'usuario': '@bombado', 'nivel': 24},
-          {'nome': 'Ana Beatriz', 'usuario': '@Aninha', 'nivel': 1},
+          {'nome': 'Ana Beatriz', 'usuario': '@Aninha', 'nivel': 2},
+          {'nome': 'Lucas', 'usuario': '@Mascote', 'nivel': 0},
         ];
         _salvarAmigos();
       }
@@ -83,7 +82,51 @@ class _TelaVoceState extends State<TelaVoce> {
     });
   }
 
-  // Função para abrir a galeria e salvar a escolha
+  
+  void _mostrarOpcoesFoto() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF3C096C), // Roxo escuro do tema
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 10, bottom: 10),
+                child: Center(
+                  child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white30, borderRadius: BorderRadius.circular(10))),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Color(0xFFFFD200)),
+                title: const Text('Escolher da Galeria', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                onTap: () {
+                  Navigator.pop(context); // Fecha o menu
+                  _escolherFoto(); // Abre a galeria
+                },
+              ),
+              // Só mostra a opção de remover se ele tiver uma foto!
+              if (_caminhoFoto != null)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                  title: const Text('Remover Foto', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _removerFoto();
+                  },
+                ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Função para abrir a galeria
   Future<void> _escolherFoto() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
@@ -93,17 +136,29 @@ class _TelaVoceState extends State<TelaVoce> {
       setState(() {
         _caminhoFoto = image.path;
       });
-      // Salva o caminho para persistência
       await prefs.setString('foto_perfil', image.path);
       
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sua foto de perfil foi atualizada com sucesso!'),
-          backgroundColor: Color(0xFF188C0C),
-        )
+        const SnackBar(content: Text('Sua foto de perfil foi atualizada com sucesso!'), backgroundColor: Color(0xFF188C0C))
       );
     }
+  }
+
+  // NOVO: Função que remove a foto do SharedPreferences
+  Future<void> _removerFoto() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    setState(() {
+      _caminhoFoto = null; // Tira a imagem da tela
+    });
+    
+    await prefs.remove('foto_perfil'); // Apaga do banco local
+    
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Foto de perfil removida.'), backgroundColor: Color(0xFF5B189A))
+    );
   }
 
   Future<void> _salvarAmigos() async {
@@ -112,7 +167,6 @@ class _TelaVoceState extends State<TelaVoce> {
     await prefs.setInt('amigos_total', listaDeAmigos.length);
   }
 
-  // Alerta visual de confirmação antes de deletar o amigo
   void _mostrarDialogoConfirmacao(int index) {
     final nomeAmigo = listaDeAmigos[index]['nome'];
 
@@ -156,7 +210,6 @@ class _TelaVoceState extends State<TelaVoce> {
     );
   }
 
-  // Função interna de remoção
   void _removerAmigo(int index) async {
     final nomeAmigo = listaDeAmigos[index]['nome'];
     
@@ -223,9 +276,9 @@ class _TelaVoceState extends State<TelaVoce> {
                           ),
                           Column(
                             children: [
-                              // GESTURE DETECTOR PARA ABRIR A FOTO DE PERFIL
+                              // MODIFICADO: Agora chama o _mostrarOpcoesFoto() em vez de _escolherFoto() direto
                               GestureDetector(
-                                onTap: _escolherFoto,
+                                onTap: _mostrarOpcoesFoto,
                                 child: Stack(
                                   children: [
                                     CircleAvatar(
@@ -240,7 +293,7 @@ class _TelaVoceState extends State<TelaVoce> {
                                       child: Container(
                                         padding: const EdgeInsets.all(4),
                                         decoration: const BoxDecoration(color: Color(0xFF5B189A), shape: BoxShape.circle),
-                                        child: const Icon(Icons.camera_alt, color: Colors.white, size: 12),
+                                        child: const Icon(Icons.edit, color: Colors.white, size: 12), // Mudei para lápis (edit)
                                       ),
                                     ),
                                   ],

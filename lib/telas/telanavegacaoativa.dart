@@ -1,14 +1,16 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'telaavaliacaorotas.dart';
+import 'telaavaliacaorotas.dart'; 
 
 class TelaNavegacaoAtiva extends StatefulWidget {
+  final String origem; 
   final String destino;
   final String modo; 
 
   const TelaNavegacaoAtiva({
     super.key, 
+    this.origem = 'Sua localização atual', 
     this.destino = 'Escola Profissional Santo Agostinho',
     this.modo = 'carro',
   });
@@ -29,7 +31,6 @@ class _TelaNavegacaoAtivaState extends State<TelaNavegacaoAtiva> with SingleTick
   @override
   void initState() {
     super.initState();
-    // Controlador da velocidade da animação do fundo e do pulso do GPS
     _animacaoController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -42,7 +43,6 @@ class _TelaNavegacaoAtivaState extends State<TelaNavegacaoAtiva> with SingleTick
     super.dispose();
   }
 
-  // Define qual ícone mostrar no GPS baseado no modo
   IconData _getIconeModo() {
     switch (widget.modo) {
       case 'pe': return Icons.directions_walk;
@@ -56,12 +56,11 @@ class _TelaNavegacaoAtivaState extends State<TelaNavegacaoAtiva> with SingleTick
     try {
       final prefs = await SharedPreferences.getInstance();
       
-      // Salva no histórico com o modo escolhido
       final novaViagem = {
+        'origem': widget.origem.trim().isEmpty ? 'Sua localização atual' : widget.origem,
         'destino': widget.destino, 
         'data': 'Hoje, às ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
         'xp_ganho': '+25 XP',
-        'origem': 'Minha Casa',
         'status_seguranca': 'Segura',
         'modo': widget.modo,
       };
@@ -71,7 +70,6 @@ class _TelaNavegacaoAtivaState extends State<TelaNavegacaoAtiva> with SingleTick
       lista.insert(0, novaViagem);
       await prefs.setString('lista_historico', jsonEncode(lista));
 
-      // Atualiza XP global
       int xp = (prefs.getInt('xp_atual') ?? 0) + 25;
       await prefs.setInt('xp_atual', xp);
 
@@ -85,7 +83,6 @@ class _TelaNavegacaoAtivaState extends State<TelaNavegacaoAtiva> with SingleTick
 
   @override
   Widget build(BuildContext context) {
-    // Lógica para decidir qual fundo usar
     bool usaEstrada = widget.modo == 'carro' || widget.modo == 'onibus';
 
     return Scaffold(
@@ -93,34 +90,61 @@ class _TelaNavegacaoAtivaState extends State<TelaNavegacaoAtiva> with SingleTick
       body: SafeArea(
         child: Column(
           children: [
-            // Cabeçalho de Navegação
+            // CABEÇALHO ATUALIZADO: Agora mostra Origem e Destino
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               decoration: BoxDecoration(
                 gradient: _gradienteDourado,
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 3))],
               ),
               child: Row(
                 children: [
-                  Icon(_getIconeModo(), color: const Color(0xFF5B189A)),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.3),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(_getIconeModo(), color: const Color(0xFF5B189A), size: 28),
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      'Indo para: ${widget.destino}',
-                      style: const TextStyle(color: Color(0xFF5B189A), fontWeight: FontWeight.bold, fontSize: 16),
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'De: ${widget.origem}',
+                          style: const TextStyle(
+                            color: Color(0xFF5B189A), 
+                            fontWeight: FontWeight.w500, 
+                            fontSize: 13
+                          ),
+                          maxLines: 1, 
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Para: ${widget.destino}',
+                          style: const TextStyle(
+                            color: Color(0xFF5B189A), 
+                            fontWeight: FontWeight.bold, 
+                            fontSize: 16
+                          ),
+                          maxLines: 1, 
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
 
-            // MAPA DINÂMICO CONTEXTUAL
             Expanded(
               child: Stack(
                 children: [
-                  // Troca o Painter baseado no modo
                   Positioned.fill(
                     child: AnimatedBuilder(
                       animation: _animacaoController,
@@ -128,13 +152,11 @@ class _TelaNavegacaoAtivaState extends State<TelaNavegacaoAtiva> with SingleTick
                         return CustomPaint(
                           painter: usaEstrada 
                             ? _EstradaPainter(_animacaoController.value) 
-                            : _CidadePainter(_animacaoController.value), // O design original da cidade voltou!
+                            : _CidadePainter(_animacaoController.value), 
                         );
                       },
                     ),
                   ),
-                  
-                  // Selo de Rota Monitorada
                   Positioned(
                     top: 16,
                     left: 16,
@@ -149,16 +171,11 @@ class _TelaNavegacaoAtivaState extends State<TelaNavegacaoAtiva> with SingleTick
                         children: [
                           Icon(Icons.security, color: Colors.white, size: 16),
                           SizedBox(width: 6),
-                          Text(
-                            'Rota Monitorada',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                          ),
+                          Text('Rota Monitorada', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
                         ],
                       ),
                     ),
                   ),
-
-                  // Pino do GPS Animado (Pulsando)
                   Center(
                     child: AnimatedBuilder(
                       animation: _animacaoController,
@@ -168,21 +185,12 @@ class _TelaNavegacaoAtivaState extends State<TelaNavegacaoAtiva> with SingleTick
                             : (1.0 - _animacaoController.value)) * 0.3;
 
                         return Container(
-                          width: 60 * pulso,
-                          height: 60 * pulso,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: const Color(0xFF5B189A).withOpacity(0.2),
-                          ),
+                          width: 60 * pulso, height: 60 * pulso,
+                          decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFF5B189A).withOpacity(0.2)),
                           child: Center(
                             child: Container(
                               padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF5B189A),
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 3),
-                                boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))],
-                              ),
+                              decoration: BoxDecoration(color: const Color(0xFF5B189A), shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))]),
                               child: Icon(_getIconeModo(), color: Colors.white, size: 24),
                             ),
                           ),
@@ -194,13 +202,9 @@ class _TelaNavegacaoAtivaState extends State<TelaNavegacaoAtiva> with SingleTick
               ),
             ),
 
-            // Painel Inferior de Chegada
             Container(
               padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                color: Color(0xFF5B189A),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
+              decoration: const BoxDecoration(color: Color(0xFF5B189A), borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -218,12 +222,7 @@ class _TelaNavegacaoAtivaState extends State<TelaNavegacaoAtiva> with SingleTick
                     height: 48,
                     child: ElevatedButton.icon(
                       onPressed: _finalizarViagem,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.redAccent,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                       icon: const Icon(Icons.stop_circle_outlined, size: 20),
                       label: const Text('Cheguei ao Destino', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                     ),
@@ -247,7 +246,6 @@ class _TelaNavegacaoAtivaState extends State<TelaNavegacaoAtiva> with SingleTick
   }
 }
 
-// PAINTER 1: ESTRADA (Para Carro/Ônibus)
 class _EstradaPainter extends CustomPainter {
   final double progresso;
   _EstradaPainter(this.progresso);
@@ -255,67 +253,43 @@ class _EstradaPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), Paint()..color = const Color(0xFFEAEAEA));
-
     final asfalto = Paint()..color = const Color(0xFFD5D5D5)..strokeWidth = 80..style = PaintingStyle.stroke;
     canvas.drawLine(Offset(size.width/2, 0), Offset(size.width/2, size.height), asfalto);
-
     final bordaRua = Paint()..color = Colors.white..strokeWidth = 4..style = PaintingStyle.stroke;
     canvas.drawLine(Offset(size.width/2 - 35, 0), Offset(size.width/2 - 35, size.height), bordaRua);
     canvas.drawLine(Offset(size.width/2 + 35, 0), Offset(size.width/2 + 35, size.height), bordaRua);
-
     final faixa = Paint()..color = Colors.white..strokeWidth = 4;
-    double step = 50;
-    double offset = progresso * step;
-    for (double y = -step + offset; y < size.height; y += step) {
-      canvas.drawLine(Offset(size.width/2, y), Offset(size.width/2, y + 25), faixa);
-    }
+    double step = 50; double offset = progresso * step;
+    for (double y = -step + offset; y < size.height; y += step) canvas.drawLine(Offset(size.width/2, y), Offset(size.width/2, y + 25), faixa);
   }
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
-// PAINTER 2: CIDADE/BAIRRO (Para Pé/Bicicleta) - Design Original Melhorado e Animado!
 class _CidadePainter extends CustomPainter {
   final double progresso;
   _CidadePainter(this.progresso);
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Fundo cinza claro
     final fundo = Paint()..color = const Color(0xFFE9E9E9);
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), fundo);
-    
     final rua = Paint()..color = const Color(0xFFD5D5D5)..strokeWidth = 10..style = PaintingStyle.stroke;
     final quadra = Paint()..color = const Color(0xFFF3F3F3)..style = PaintingStyle.fill;
     final parque = Paint()..color = const Color(0xFFCFE8C8)..style = PaintingStyle.fill;
     
-    double passoY = 140; // Distância entre as ruas horizontais
-    double passoX = 110; // Distância entre as ruas verticais
+    double passoY = 140; double passoX = 110; double offset = progresso * passoY;
     
-    // A mágica da animação: faz as ruas deslizarem para baixo perfeitamente
-    double offset = progresso * passoY;
+    for (double x = -50; x < size.width + 100; x += passoX) canvas.drawLine(Offset(x, -50), Offset(x - 20, size.height + 50), rua);
     
-    // Desenha Ruas Verticais (levemente inclinadas para charme)
-    for (double x = -50; x < size.width + 100; x += passoX) {
-      canvas.drawLine(Offset(x, -50), Offset(x - 20, size.height + 50), rua);
-    }
-    
-    // Desenha Ruas Horizontais e as Quadras/Parques
     for (double y = -passoY + offset; y < size.height + passoY; y += passoY) {
       canvas.drawLine(Offset(-50, y), Offset(size.width + 50, y + 15), rua);
-      
       for (double x = 10; x < size.width; x += passoX) {
-        // Lógica simples para transformar algumas quadras em parques verdinhos
         bool isParque = (x > 100 && (y % 280) < 100); 
-        
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(Rect.fromLTWH(x, y + 15, 70, 90), const Radius.circular(12)), 
-          isParque ? parque : quadra
-        );
+        canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y + 15, 70, 90), const Radius.circular(12)), isParque ? parque : quadra);
       }
     }
   }
-  
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

@@ -1,3 +1,4 @@
+import 'dart:io'; 
 import 'package:deslock/telas/telaconta.dart';
 import 'package:deslock/telas/teladeconfiguracoes.dart';
 import 'package:deslock/telas/telapremium.dart';
@@ -16,6 +17,7 @@ class MenuLateral extends StatefulWidget {
 class _MenuLateralState extends State<MenuLateral> {
   String nome = 'Usuário';
   String usuario = '@usuario';
+  String? _caminhoFoto; 
   bool carregando = true;
 
   // CONSTANTE DO GRADIENTE DOURADO
@@ -42,6 +44,7 @@ class _MenuLateralState extends State<MenuLateral> {
 
     final nomeSalvo = prefs.getString('nome_usuario');
     final usuarioSalvo = prefs.getString('user_usuario');
+    final fotoSalva = prefs.getString('foto_perfil'); // NOVO: Puxa a foto salva
 
     if (!mounted) return;
 
@@ -51,6 +54,7 @@ class _MenuLateralState extends State<MenuLateral> {
           : 'Usuário';
 
       usuario = _formatarUsuario(usuarioSalvo ?? '');
+      _caminhoFoto = fotoSalva; // NOVO: Atualiza o estado com a foto
       carregando = false;
     });
   }
@@ -79,14 +83,18 @@ class _MenuLateralState extends State<MenuLateral> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const CircleAvatar(
+                          // MODIFICADO: CircleAvatar agora mostra a foto real
+                          CircleAvatar(
                             radius: 22,
-                            backgroundColor: Color(0xFFD9D9D9),
-                            child: Icon(
-                              Icons.person,
-                              color: Colors.white,
-                              size: 26,
-                            ),
+                            backgroundColor: const Color(0xFFD9D9D9),
+                            backgroundImage: _caminhoFoto != null ? FileImage(File(_caminhoFoto!)) : null,
+                            child: _caminhoFoto == null 
+                                ? const Icon(
+                                    Icons.person,
+                                    color: Colors.white,
+                                    size: 26,
+                                  )
+                                : null,
                           ),
                           const SizedBox(height: 12),
                           Text(
