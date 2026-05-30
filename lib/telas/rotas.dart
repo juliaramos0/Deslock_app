@@ -1,4 +1,5 @@
-import 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data'; // NOVO: Para lidar com a foto em memória (Base64)
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -15,13 +16,16 @@ class TelaRotas extends StatefulWidget {
 }
 
 class _TelaRotasState extends State<TelaRotas> {
+  // Backend: Estes controllers guardam os inputs atuais do utilizador.
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _origemController = TextEditingController(text: "Sua localização atual");
 
   bool _mostrarCardDestino = false;
   String _nomeDestinoPesquisado = "Escola Profissional Santo Agostinho";
-  String _modoSelecionado = 'carro'; 
-  String? _caminhoFoto; 
+  String _modoSelecionado = 'carro'; // Backend: Modo padrão de transporte
+  
+  // LÓGICA DE FOTO BASE64
+  Uint8List? _bytesFoto; 
 
   final Gradient _gradienteDourado = const LinearGradient(
     begin: Alignment.topLeft,
@@ -35,11 +39,16 @@ class _TelaRotasState extends State<TelaRotas> {
     _carregarFoto();
   }
 
+  // Função atualizada para ler Base64
   Future<void> _carregarFoto() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _caminhoFoto = prefs.getString('foto_perfil');
-    });
+    final fotoSalvaBase64 = prefs.getString('foto_perfil_base64');
+    
+    if (fotoSalvaBase64 != null && fotoSalvaBase64.isNotEmpty) {
+      setState(() {
+        _bytesFoto = base64Decode(fotoSalvaBase64);
+      });
+    }
   }
 
   @override
@@ -54,25 +63,31 @@ class _TelaRotasState extends State<TelaRotas> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  // AÇÃO DO EVENTO: "Pesquisar"
+  // Backend: Esta função é acionada ao dar enter num campo. Idealmente chamará a API de geocodificação aqui.
   void _pesquisarLocal(String valor) {
     if (valor.trim().isEmpty) return;
     FocusScope.of(context).unfocus();
     setState(() {
-      _searchController.text = valor; // Garante que o texto fica no campo
+      _searchController.text = valor; 
       _nomeDestinoPesquisado = valor;
       _mostrarCardDestino = true;
     });
   }
 
+  // AÇÃO DO BOTÃO: "Limpar/Seta Voltar"
+  // Backend: Cancela a pesquisa atual e recolhe a interface de rota.
   void _limparPesquisa() {
     setState(() {
       _searchController.clear();
-      _origemController.text = "Sua localização atual"; // Reseta para o padrão
+      _origemController.text = "Sua localização atual"; 
       _mostrarCardDestino = false;
     });
     FocusScope.of(context).unfocus();
   }
 
+  // COMPONENTE: "Botão de Modo de Transporte"
+  // Backend: Atualiza a variável '_modoSelecionado' que será passada para a rota.
   Widget _botaoModo(IconData icone, String modo) {
     bool selecionado = _modoSelecionado == modo;
     return GestureDetector(
@@ -98,11 +113,12 @@ class _TelaRotasState extends State<TelaRotas> {
         color: Colors.white,
         child: Stack(
           children: [
-            // MAPA DE FUNDO
+            // MAPA DE FUNDO (MOCK)
             Container(width: double.infinity, height: double.infinity, color: const Color(0xFFEAEAEA)),
             Positioned.fill(child: CustomPaint(painter: _MapaRotasPainter())),
 
             // PINO CENTRAL DO MAPA
+            // Backend: Tocar num local no mapa (quando real) deve disparar a função abaixo.
             Center(
               child: GestureDetector(
                 onTap: () {
@@ -120,7 +136,9 @@ class _TelaRotasState extends State<TelaRotas> {
               ),
             ),
             
+            // ==========================================
             // CABEÇALHO SUPERIOR INTELIGENTE (ESTILO GOOGLE MAPS)
+            // ==========================================
             Positioned(
               top: 0, left: 0, right: 0,
               child: AnimatedContainer(
@@ -143,6 +161,9 @@ class _TelaRotasState extends State<TelaRotas> {
                             children: [
                               Expanded(child: _buildSearchBar()),
                               const SizedBox(width: 16),
+                              
+                              // --- BOTÃO: ABRIR PERFIL (AVATAR) ---
+                              // Backend: Navegação simples para a tab Perfil
                               GestureDetector(
                                 onTap: () {
                                   Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const TelaBase(initialIndex: 2)), (route) => false);
@@ -150,8 +171,9 @@ class _TelaRotasState extends State<TelaRotas> {
                                 child: CircleAvatar(
                                   radius: 22, 
                                   backgroundColor: Colors.white, 
-                                  backgroundImage: _caminhoFoto != null ? FileImage(File(_caminhoFoto!)) : null,
-                                  child: _caminhoFoto == null ? const Icon(Icons.person, color: Color(0xFF5B189A)) : null,
+                                  // Renderiza a foto em Base64
+                                  backgroundImage: _bytesFoto != null ? MemoryImage(_bytesFoto!) : null,
+                                  child: _bytesFoto == null ? const Icon(Icons.person, color: Color(0xFF5B189A)) : null,
                                 ),
                               ),
                             ],
@@ -161,17 +183,20 @@ class _TelaRotasState extends State<TelaRotas> {
                             scrollDirection: Axis.horizontal,
                             child: Row(
                               children: [
+                                // --- BOTÃO FILTRO: FAVORITOS ---
                                 _filtro(icon: Icons.favorite_border, texto: "Favoritos", onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaFavoritos()))),
                                 const SizedBox(width: 10),
+                                // --- BOTÃO FILTRO: HISTÓRICO ---
                                 _filtro(icon: Icons.history, texto: "Histórico", onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaHistorico()))),
                               ],
                             ),
                           ),
                         ] 
-                        // SE ESTIVER EM MODO ROTA: Expande o cabeçalho em duas caixas (IGUAL GOOGLE MAPS!)
+                        // SE ESTIVER EM MODO ROTA: Expande o cabeçalho em duas caixas 
                         else ...[
                           Row(
                             children: [
+                              // --- BOTÃO: VOLTAR ---
                               IconButton(
                                 icon: const Icon(Icons.arrow_back, color: Color(0xFF5B189A)),
                                 onPressed: _limparPesquisa,
@@ -186,7 +211,6 @@ class _TelaRotasState extends State<TelaRotas> {
                                   ),
                                   child: Row(
                                     children: [
-                                      // Linha do tempo esquerda ligando os pontos
                                       Column(
                                         children: [
                                           const Icon(Icons.radio_button_checked, color: Color(0xFF5B189A), size: 16),
@@ -195,11 +219,11 @@ class _TelaRotasState extends State<TelaRotas> {
                                         ],
                                       ),
                                       const SizedBox(width: 14),
-                                      // Campos de texto empilhados
                                       Expanded(
                                         child: Column(
                                           children: [
-                                            // PONTO DE PARTIDA (MANUAL)
+                                            // --- CAMPO: PONTO DE PARTIDA (MANUAL) ---
+                                            // Backend: Ler valor deste TextField para 'origem' da rota via API
                                             SizedBox(
                                               height: 30,
                                               child: TextField(
@@ -215,7 +239,8 @@ class _TelaRotasState extends State<TelaRotas> {
                                               ),
                                             ),
                                             const Divider(height: 10, color: Colors.black12),
-                                            // DESTINO (MANUAL)
+                                            // --- CAMPO: DESTINO (MANUAL) ---
+                                            // Backend: Ler valor deste TextField para 'destino' da rota via API
                                             SizedBox(
                                               height: 30,
                                               child: TextField(
@@ -248,7 +273,11 @@ class _TelaRotasState extends State<TelaRotas> {
               ),
             ),
 
+            // ==========================================
             // MIRA DO GPS (FAB)
+            // ==========================================
+            // --- BOTÃO FLUTUANTE: MINHA LOCALIZAÇÃO ---
+            // Backend: Ao pressionar deve recentrar o mapa atualizando as coords GPS reais
             AnimatedPositioned(
               duration: const Duration(milliseconds: 500),
               curve: Curves.easeOutQuart,
@@ -263,7 +292,9 @@ class _TelaRotasState extends State<TelaRotas> {
               ),
             ),
 
-            // CARD DO DESTINO (MAIS LIMPO E FOCADO)
+            // ==========================================
+            // CARD DO DESTINO (INICIAR ROTA)
+            // ==========================================
             AnimatedPositioned(
               duration: const Duration(milliseconds: 500),
               curve: Curves.easeOutQuart,
@@ -276,6 +307,7 @@ class _TelaRotasState extends State<TelaRotas> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // FOTO DO DESTINO (API Image)
                     ClipRRect(
                       borderRadius: BorderRadius.circular(14),
                       child: Image.network(
@@ -286,7 +318,6 @@ class _TelaRotasState extends State<TelaRotas> {
                     ),
                     const SizedBox(height: 12),
                     
-                    // NOME DO DESTINO EM DESTAQUE
                     Text(
                       _nomeDestinoPesquisado, 
                       style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold), 
@@ -297,6 +328,8 @@ class _TelaRotasState extends State<TelaRotas> {
                     
                     const Text("Como pretende deslocar-se?", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
                     const SizedBox(height: 8),
+                    
+                    // SELETOR DE MODOS (Bicicleta, Pé, etc)
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
@@ -307,6 +340,9 @@ class _TelaRotasState extends State<TelaRotas> {
                       ],
                     ),
                     const SizedBox(height: 16),
+                    
+                    // --- BOTÃO PRINCIPAL: INICIAR ROTA ---
+                    // Backend: Recolhe a Origem, Destino e Modo Selecionado, passa para o ecrã Navegacao Ativa, que deverá traçar/chamar rota final.
                     SizedBox(
                       width: double.infinity,
                       height: 42,
@@ -338,6 +374,7 @@ class _TelaRotasState extends State<TelaRotas> {
     );
   }
 
+  // CONSTRUTOR: BARRA DE PESQUISA (Estado Não-Expandido)
   Widget _buildSearchBar() {
     return Container(
       height: 44,
@@ -350,6 +387,7 @@ class _TelaRotasState extends State<TelaRotas> {
           hintText: "Para onde vamos?",
           hintStyle: const TextStyle(color: Colors.black38),
           prefixIcon: const Icon(Icons.search, color: Color(0xFF5B189A)),
+          // --- BOTÃO (NO CAMPO): LIMPAR (X) ---
           suffixIcon: _searchController.text.isNotEmpty ? IconButton(icon: const Icon(Icons.clear, color: Colors.black38), onPressed: _limparPesquisa) : null,
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -359,6 +397,7 @@ class _TelaRotasState extends State<TelaRotas> {
     );
   }
 
+  // CONSTRUTOR: BOTOES TIPO FILTRO/ATALHO (Favoritos / Historico)
   Widget _filtro({required IconData icon, required String texto, required VoidCallback onTap}) {
     return OutlinedButton.icon(
       onPressed: onTap,
@@ -369,6 +408,7 @@ class _TelaRotasState extends State<TelaRotas> {
   }
 }
 
+// MOCK: Pintura manual para representar um mapa estático na interface enquanto não há API GoogleMaps.
 class _MapaRotasPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {

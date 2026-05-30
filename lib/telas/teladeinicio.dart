@@ -1,12 +1,12 @@
 import 'dart:convert'; 
-import 'dart:io'; 
+import 'dart:typed_data'; // NOVO: Para lidar com a foto em memória (Base64)
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'telafavoritos.dart';
 import 'telabase.dart'; 
 import 'telahistorico.dart';
-import 'telanavegacaoativa.dart'; // NOVO: Importação para abrir o GPS direto!
+import 'telanavegacaoativa.dart'; 
 
 class TelaInicio extends StatefulWidget {
   const TelaInicio({super.key});
@@ -21,7 +21,9 @@ class _TelaInicioState extends State<TelaInicio> {
 
   String nome = 'Usuário';
   String usuario = '@usuario';
-  String? _caminhoFoto; 
+  
+  // NOVO: Lê a imagem em formato de bytes para funcionar em qualquer PC/Celular
+  Uint8List? _bytesFoto; 
 
   int nivel = 1;
   int xpAtual = 0;
@@ -58,7 +60,14 @@ class _TelaInicioState extends State<TelaInicio> {
     setState(() {
       nome = prefs.getString('nome_usuario') ?? 'Usuário';
       usuario = _formatarUsuario(prefs.getString('user_usuario') ?? '');
-      _caminhoFoto = prefs.getString('foto_perfil'); 
+      
+      // LÓGICA DE FOTO BASE64
+      final fotoSalvaBase64 = prefs.getString('foto_perfil_base64');
+      if (fotoSalvaBase64 != null && fotoSalvaBase64.isNotEmpty) {
+        _bytesFoto = base64Decode(fotoSalvaBase64);
+      } else {
+        _bytesFoto = null;
+      }
 
       nivel = prefs.getInt('nivel_usuario') ?? 1;
       xpAtual = prefs.getInt('xp_atual') ?? 0;
@@ -108,7 +117,8 @@ class _TelaInicioState extends State<TelaInicio> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Você ganhou $valor XP!')));
   }
 
-  // MODIFICADO: Agora ele pula direto para a TelaNavegacaoAtiva
+  // AÇÃO DO BOTÃO: "IR" (Nos cards de Favoritos)
+  // Backend: Essa função recebe o 'destino' e inicia a navegação ativa no GPS.
   void _iniciarRotaRapida(String destino) {
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -121,18 +131,22 @@ class _TelaInicioState extends State<TelaInicio> {
         MaterialPageRoute(
           builder: (_) => TelaNavegacaoAtiva(
             destino: destino,
-            modo: 'carro', // Padrão automático para o "atalho rápido"
+            modo: 'carro', // Backend: Aqui você pode configurar para puxar o modo favorito da API
           ),
         ),
       );
     });
   }
 
+  // AÇÃO DO BOTÃO: "Atalhos Rápidos" ou "Ver todos os favoritos"
+  // Backend: Apenas navegação para a tela que lista os Favoritos do usuário.
   Future<void> _verFavoritos() async {
     await Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaFavoritos()));
     _carregarDados(); 
   }
 
+  // AÇÃO DO BOTÃO: "Resgatar Recompensa" (No card da Missão Semanal)
+  // Backend: Chama API para validar missão e credita XP na conta do usuário no servidor.
   Future<void> _resgatarMissao() async {
     if (missaoSemanalProgresso >= 1.0) {
       setState(() {
@@ -142,6 +156,8 @@ class _TelaInicioState extends State<TelaInicio> {
     }
   }
 
+  // AÇÃO DO BOTÃO: Foto de Perfil (Avatar no topo da tela)
+  // Backend: Leva o usuário para a tela de Perfil
   Future<void> _abrirPerfil() async {
     Navigator.pushAndRemoveUntil(
       context,
@@ -150,6 +166,8 @@ class _TelaInicioState extends State<TelaInicio> {
     );
   }
 
+  // AÇÃO DO BOTÃO: "Última Rota"
+  // Backend: Direciona para o Histórico de viagens do usuário puxado do servidor
   Future<void> _abrirHistorico() async {
     Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaHistorico()));
   }
@@ -174,7 +192,9 @@ class _TelaInicioState extends State<TelaInicio> {
                     physics: const AlwaysScrollableScrollPhysics(),
                     child: Column(
                       children: [
-                        // CABEÇALHO DOURADO
+                        // ==========================================
+                        // CABEÇALHO DOURADO (Perfil e Progresso)
+                        // ==========================================
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(gradient: _gradienteDourado),
@@ -183,13 +203,15 @@ class _TelaInicioState extends State<TelaInicio> {
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  // --- BOTÃO: ABRIR PERFIL (AVATAR) ---
                                   GestureDetector(
                                     onTap: _abrirPerfil,
                                     child: CircleAvatar(
                                       radius: 32,
                                       backgroundColor: const Color(0xFFBDBDBD),
-                                      backgroundImage: _caminhoFoto != null ? FileImage(File(_caminhoFoto!)) : null,
-                                      child: _caminhoFoto == null ? const Icon(Icons.person, size: 36, color: Colors.white) : null,
+                                      // Renderiza a foto em Base64
+                                      backgroundImage: _bytesFoto != null ? MemoryImage(_bytesFoto!) : null,
+                                      child: _bytesFoto == null ? const Icon(Icons.person, size: 36, color: Colors.white) : null,
                                     ),
                                   ),
                                   const SizedBox(width: 12),
@@ -199,7 +221,7 @@ class _TelaInicioState extends State<TelaInicio> {
                                       children: [
                                         Text(nome, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                                         Text(usuario),
-                                        Text("👥 $amigosTotal Amigos"),
+                                        Text("👥 $amigosTotal Amigos"), // Backend: Contar amigos da lista da API
                                       ],
                                     ),
                                   ),
@@ -228,7 +250,10 @@ class _TelaInicioState extends State<TelaInicio> {
                           ),
                         ),
                         
-                        // BARRA DA MISSÃO SEMANAL
+                        // ==========================================
+                        // BARRA DA MISSÃO SEMANAL (Retrátil)
+                        // ==========================================
+                        // --- BOTÃO: EXPANDIR/RECOLHER MISSÃO ---
                         GestureDetector(
                           onTap: () => setState(() => missaoAberta = !missaoAberta),
                           child: Container(
@@ -262,7 +287,7 @@ class _TelaInicioState extends State<TelaInicio> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      const Text("Complete 3 rotas sustentáveis", style: TextStyle(color: Color(0xFFFFD200), fontWeight: FontWeight.bold, fontSize: 14)),
+                                      const Text("Complete 3 rotas sustentáveis", style: TextStyle(color: Color(0xFFFFD200), fontWeight: FontWeight.bold, fontSize: 14)), // Backend: Puxar texto da missão atual da API
                                       const SizedBox(height: 12),
                                       Row(
                                         children: [
@@ -286,13 +311,15 @@ class _TelaInicioState extends State<TelaInicio> {
                                         children: [
                                           Text("Recompensa:", style: TextStyle(color: Colors.white70, fontSize: 12)),
                                           SizedBox(width: 8),
-                                          Text("+ 150 XP", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                                          Text("+ 150 XP", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)), // Backend: Puxar XP da recompensa
                                         ],
                                       ),
                                       const SizedBox(height: 14),
                                       Container(
                                         width: double.infinity,
                                         decoration: BoxDecoration(gradient: missaoConcluida ? _gradienteDourado : null, color: missaoConcluida ? null : Colors.white24, borderRadius: BorderRadius.circular(25)),
+                                        // --- BOTÃO: RESGATAR RECOMPENSA DA MISSÃO ---
+                                        // Só fica ativo (clickable) quando missaoConcluida for verdadeira
                                         child: ElevatedButton.icon(
                                           onPressed: missaoConcluida ? _resgatarMissao : null, 
                                           style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, disabledBackgroundColor: Colors.transparent, shadowColor: Colors.transparent, foregroundColor: missaoConcluida ? const Color(0xFF5B189A) : Colors.white54),
@@ -306,6 +333,9 @@ class _TelaInicioState extends State<TelaInicio> {
                               : const SizedBox(width: double.infinity, height: 0),
                         ),
                         
+                        // ==========================================
+                        // CONTEÚDO SCROLLÁVEL INFERIOR (Favoritos e Histórico)
+                        // ==========================================
                         Container(
                           width: double.infinity,
                           color: const Color(0xFFEAEAEA),
@@ -313,6 +343,7 @@ class _TelaInicioState extends State<TelaInicio> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              // --- BOTÃO: TÍTULO DOS FAVORITOS (Ver tudo) ---
                               GestureDetector(
                                 onTap: _verFavoritos,
                                 child: const Padding(
@@ -328,6 +359,7 @@ class _TelaInicioState extends State<TelaInicio> {
                               ),
                               const SizedBox(height: 10),
                               (favoritesHome.isEmpty)
+                                  // --- BOTÃO: CARD DE AVISO VAZIO (Leva para favoritos) ---
                                   ? GestureDetector(
                                       onTap: _verFavoritos,
                                       child: Container(
@@ -338,6 +370,7 @@ class _TelaInicioState extends State<TelaInicio> {
                                         child: const Center(child: Text('Adicione locais favoritos para acessá-los aqui.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF5B189A), fontSize: 15, fontWeight: FontWeight.bold))),
                                       ),
                                     )
+                                  // RENDERIZAÇÃO DA LISTA DE FAVORITOS (Max 2 na Home)
                                   : Column(
                                       children: [
                                         for (var fav in favoritesHome) ...[
@@ -348,6 +381,8 @@ class _TelaInicioState extends State<TelaInicio> {
                                               leading: const CircleAvatar(backgroundColor: Color(0xFF5B189A), child: Icon(Icons.star, color: Color(0xFFFFD200), size: 20)),
                                               title: Text(fav['titulo'] ?? 'Local salvo', style: const TextStyle(color: Color(0xFF5B189A), fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
                                               subtitle: Text(fav['categoria'] ?? 'Favorito', style: const TextStyle(fontSize: 12)),
+                                              // --- BOTÃO: INICIAR ROTA DO FAVORITO ("IR") ---
+                                              // Backend: Aqui envia o nome do local para a rota
                                               trailing: ElevatedButton(
                                                 onPressed: () => _iniciarRotaRapida(fav['titulo'] ?? 'Destino'),
                                                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5B189A), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), elevation: 0),
@@ -359,6 +394,7 @@ class _TelaInicioState extends State<TelaInicio> {
                                       ],
                                     ),
                               const SizedBox(height: 8),
+                              // --- BOTÃO: VER TODOS OS FAVORITOS (LINK TEXTO) ---
                               Padding(
                                 padding: const EdgeInsets.only(left: 6),
                                 child: TextButton.icon(
@@ -368,6 +404,11 @@ class _TelaInicioState extends State<TelaInicio> {
                                 ),
                               ),
                               const SizedBox(height: 16),
+
+                              // ==========================================
+                              // SESSÃO DO HISTÓRICO DA ÚLTIMA ROTA
+                              // ==========================================
+                              // --- BOTÃO: TÍTULO DO HISTÓRICO (Ver tudo) ---
                               GestureDetector(
                                 onTap: _abrirHistorico,
                                 child: const Padding(
@@ -390,6 +431,7 @@ class _TelaInicioState extends State<TelaInicio> {
                                       decoration: BoxDecoration(color: const Color(0xFFD0D0D0), borderRadius: BorderRadius.circular(8)),
                                       child: const Center(child: Text('Você ainda não fez nenhuma rota', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF5B189A), fontSize: 18, fontWeight: FontWeight.bold))),
                                     )
+                                  // CARD DE RESUMO DA ÚLTIMA ROTA
                                   : Container(
                                       margin: const EdgeInsets.symmetric(horizontal: 6),
                                       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4))]),

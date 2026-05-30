@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'telabase.dart'; 
-import 'telarecuperarsenha.dart'; // NOVO: Importe da tela de recuperar senha
+import 'telarecuperarsenha.dart'; 
 
 class TelaLogin extends StatefulWidget {
   const TelaLogin({super.key});
@@ -14,6 +14,7 @@ class TelaLogin extends StatefulWidget {
 class _TelaLoginState extends State<TelaLogin> {
   bool _isLogin = true;
 
+  // Backend: Controladores que guardam os dados digitados pelo utilizador
   final TextEditingController _nomeController = TextEditingController();
   final TextEditingController _usuarioController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -45,6 +46,7 @@ class _TelaLoginState extends State<TelaLogin> {
     super.dispose();
   }
 
+  // Alterna visualmente entre as telas de "Entrar" e "Cadastrar"
   void _alternarModo() {
     setState(() {
       _isLogin = !_isLogin;
@@ -54,11 +56,13 @@ class _TelaLoginState extends State<TelaLogin> {
     });
   }
 
+  // Validação simples de E-mail
   bool _emailValido(String email) {
     final regex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
     return regex.hasMatch(email);
   }
 
+  // Backend: Validação de formulário no lado do cliente (Front-end) antes de enviar para a API
   bool _validarCampos() {
     final email = _emailController.text.trim();
     final senha = _senhaController.text.trim();
@@ -111,6 +115,8 @@ class _TelaLoginState extends State<TelaLogin> {
     return erroEmail == null && erroSenha == null;
   }
 
+  // --- FUNÇÃO PRINCIPAL DE AUTENTICAÇÃO ---
+  // Backend: É AQUI que o servidor entra em ação (via API REST ou Firebase Auth)
   Future<void> _processarAcao() async {
     FocusScope.of(context).unfocus();
 
@@ -122,9 +128,12 @@ class _TelaLoginState extends State<TelaLogin> {
     });
 
     try {
+      // Atualmente simula um banco de dados usando SharedPreferences
       final prefs = await SharedPreferences.getInstance();
 
       if (_isLogin) {
+        // Backend: Requisição POST (Login) enviando Email e Senha. 
+        // Retorna Token de Autenticação se sucesso.
         final emailSalvo = prefs.getString('email_cadastrado');
         final senhaSalva = prefs.getString('senha_cadastrada');
 
@@ -144,11 +153,13 @@ class _TelaLoginState extends State<TelaLogin> {
         }
 
       } else {
+        // Backend: Requisição POST (Cadastro/Register) enviando Nome, @, Email e Senha.
         await prefs.setString('nome_usuario', _nomeController.text.trim());
         await prefs.setString('user_usuario', _usuarioController.text.trim());
         await prefs.setString('email_cadastrado', _emailController.text.trim());
         await prefs.setString('senha_cadastrada', _senhaController.text);
         
+        // Atribui status padrão ao novo utilizador (pode ser gerido pelo backend ao criar conta)
         await prefs.setInt('nivel_usuario', 1);
         await prefs.setInt('xp_atual', 0);
         await prefs.setInt('xp_maximo', 200);
@@ -176,7 +187,7 @@ class _TelaLoginState extends State<TelaLogin> {
     );
   }
 
-  // NOVO: Navegação real para a Tela de Recuperar Senha
+  // --- BOTÃO: RECUPERAR SENHA ---
   void _irParaRecuperarSenha() {
     Navigator.push(
       context,
@@ -278,6 +289,7 @@ class _TelaLoginState extends State<TelaLogin> {
                       obscure: _obscureSenha,
                       errorText: _erroSenha,
                       suffixIcon: IconButton(
+                        // --- BOTÃO: VISIBILIDADE DA SENHA ---
                         onPressed: () {
                           setState(() {
                             _obscureSenha = !_obscureSenha;
@@ -328,6 +340,7 @@ class _TelaLoginState extends State<TelaLogin> {
                 const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerRight,
+                  // --- BOTÃO: ESQUECI MINHA SENHA ---
                   child: TextButton(
                     onPressed: _irParaRecuperarSenha,
                     child: const Text(
@@ -364,7 +377,8 @@ class _TelaLoginState extends State<TelaLogin> {
               
               const SizedBox(height: 24),
               
-              // BOTÃO PRINCIPAL COM GRADIENTE DOURADO
+              // --- BOTÃO PRINCIPAL: ENTRAR / CADASTRAR ---
+              // Backend: Aciona a função _processarAcao() listada no topo
               Container(
                 width: 150, 
                 height: 45,
@@ -440,6 +454,8 @@ class _TelaLoginState extends State<TelaLogin> {
               
               const SizedBox(height: 24),
               
+              // --- BOTÃO: LOGIN SOCIAL (GOOGLE) ---
+              // Backend: Integração OAuth Google Sign-In
               _botaoSocialGoogle(
                 texto: 'Continuar com Google',
                 onPressed: () {}, 
@@ -447,6 +463,8 @@ class _TelaLoginState extends State<TelaLogin> {
               
               const SizedBox(height: 14),
               
+              // --- BOTÃO: LOGIN SOCIAL (APPLE) ---
+              // Backend: Integração OAuth Apple Sign-In
               _botaoSocialApple(
                 texto: 'Continuar com Apple',
                 onPressed: () {},
@@ -454,6 +472,7 @@ class _TelaLoginState extends State<TelaLogin> {
               
               const SizedBox(height: 18),
               
+              // --- BOTÃO: ALTERNAR ENTRE LOGIN E CADASTRO ---
               _botaoSecundario(
                 texto: _isLogin ? 'Não tem conta? Cadastre-se' : 'Já tem conta? Entrar',
                 onPressed: _alternarModo,

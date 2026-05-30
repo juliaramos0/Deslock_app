@@ -1,4 +1,5 @@
-import 'dart:io'; 
+import 'dart:convert'; // NOVO: Para decodificar a foto
+import 'dart:typed_data'; // NOVO: Para manipular a imagem na memória (Base64)
 import 'package:deslock/telas/telaconta.dart';
 import 'package:deslock/telas/teladeconfiguracoes.dart';
 import 'package:deslock/telas/telapremium.dart';
@@ -17,7 +18,10 @@ class MenuLateral extends StatefulWidget {
 class _MenuLateralState extends State<MenuLateral> {
   String nome = 'Usuário';
   String usuario = '@usuario';
-  String? _caminhoFoto; 
+  
+  // NOVO: Lê a imagem em formato de bytes (Base64) em vez de caminho local
+  Uint8List? _bytesFoto; 
+  
   bool carregando = true;
 
   // CONSTANTE DO GRADIENTE DOURADO
@@ -39,12 +43,15 @@ class _MenuLateralState extends State<MenuLateral> {
     return texto.startsWith('@') ? texto : '@$texto';
   }
 
+  // Backend: Função inicial para buscar os dados de Perfil do utilizador (Nome, @, e Foto)
   Future<void> _carregarDadosUsuario() async {
     final prefs = await SharedPreferences.getInstance();
 
     final nomeSalvo = prefs.getString('nome_usuario');
     final usuarioSalvo = prefs.getString('user_usuario');
-    final fotoSalva = prefs.getString('foto_perfil'); // NOVO: Puxa a foto salva
+    
+    // Lê o código Base64 da imagem
+    final fotoSalvaBase64 = prefs.getString('foto_perfil_base64');
 
     if (!mounted) return;
 
@@ -54,7 +61,14 @@ class _MenuLateralState extends State<MenuLateral> {
           : 'Usuário';
 
       usuario = _formatarUsuario(usuarioSalvo ?? '');
-      _caminhoFoto = fotoSalva; // NOVO: Atualiza o estado com a foto
+      
+      // Decodifica o Base64 para exibir a imagem na interface
+      if (fotoSalvaBase64 != null && fotoSalvaBase64.isNotEmpty) {
+        _bytesFoto = base64Decode(fotoSalvaBase64);
+      } else {
+        _bytesFoto = null;
+      }
+      
       carregando = false;
     });
   }
@@ -73,22 +87,24 @@ class _MenuLateralState extends State<MenuLateral> {
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // HEADER COM GRADIENTE DOURADO
+                    // ==========================================
+                    // HEADER COM GRADIENTE DOURADO E FOTO
+                    // ==========================================
                     Container(
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        gradient: _gradienteDourado, // APLICADO AQUI
+                        gradient: _gradienteDourado, 
                       ),
                       padding: const EdgeInsets.fromLTRB(12, 18, 12, 12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // MODIFICADO: CircleAvatar agora mostra a foto real
+                          // MODIFICADO: CircleAvatar agora mostra a foto em Base64 via MemoryImage
                           CircleAvatar(
                             radius: 22,
                             backgroundColor: const Color(0xFFD9D9D9),
-                            backgroundImage: _caminhoFoto != null ? FileImage(File(_caminhoFoto!)) : null,
-                            child: _caminhoFoto == null 
+                            backgroundImage: _bytesFoto != null ? MemoryImage(_bytesFoto!) : null,
+                            child: _bytesFoto == null 
                                 ? const Icon(
                                     Icons.person,
                                     color: Colors.white,
@@ -117,11 +133,15 @@ class _MenuLateralState extends State<MenuLateral> {
                       ),
                     ),
 
+                    // ==========================================
                     // LISTA DE ITENS DO MENU
+                    // ==========================================
                     Expanded(
                       child: SingleChildScrollView(
                         child: Column(
                           children: [
+                            // --- BOTÃO MENU: CONFIGURAÇÕES ---
+                            // Backend: Apenas navegação para a tela de Configurações
                             _itemMenu(
                               icon: Icons.settings,
                               titulo: 'Configurações',
@@ -135,6 +155,9 @@ class _MenuLateralState extends State<MenuLateral> {
                                 );
                               },
                             ),
+                            
+                            // --- BOTÃO MENU: CONTA ---
+                            // Backend: Navegação para a gestão da Conta do utilizador
                             _itemMenu(
                               icon: Icons.person_outline,
                               titulo: 'Conta',
@@ -148,6 +171,9 @@ class _MenuLateralState extends State<MenuLateral> {
                                 );
                               },
                             ),
+                            
+                            // --- BOTÃO MENU: PREMIUM ---
+                            // Backend: Navegação para a tela de subscrição Premium/Pagamentos
                             _itemMenu(
                               icon: Icons.attach_money,
                               titulo: 'Premium',
@@ -161,6 +187,9 @@ class _MenuLateralState extends State<MenuLateral> {
                                 );
                               },
                             ),
+                            
+                            // --- BOTÃO MENU: TUTORIAL ---
+                            // Backend: Navegação para rever os tutoriais de Onboarding
                             _itemMenu(
                               icon: Icons.menu_book,
                               titulo: 'Tutorial',
@@ -179,7 +208,11 @@ class _MenuLateralState extends State<MenuLateral> {
                       ),
                     ),
 
-                    // BOTÃO PRETO "SOBRE NÓS" FIXO NA BASE
+                    // ==========================================
+                    // BOTÃO FIXO NA BASE
+                    // ==========================================
+                    // --- BOTÃO: SOBRE NÓS ---
+                    // Backend: Navegação para ecrã de informações institucionais/termos
                     Padding(
                       padding: const EdgeInsets.all(16),
                       child: SizedBox(
@@ -219,6 +252,7 @@ class _MenuLateralState extends State<MenuLateral> {
     );
   }
 
+  // CONSTRUTOR GENÉRICO DOS ITENS DO MENU
   static Widget _itemMenu({
     required IconData icon,
     required String titulo,

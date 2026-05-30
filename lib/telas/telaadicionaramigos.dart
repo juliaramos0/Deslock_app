@@ -21,14 +21,14 @@ class _TelaAdicionarAmigosState extends State<TelaAdicionarAmigos> {
   );
 
   List<Map<String, dynamic>> pedidosRecebidos = [
-    {'nome': 'Carlos Eduardo', 'usuario': '@cadu_99', 'nivel': 4, 'estado': 'normal'},
+    {'nome': 'Victoria Vieria', 'usuario': '@Vivi', 'nivel': 4, 'estado': 'normal'},
   ];
 
   // Controle de 'estado' para cada sugestão
   List<Map<String, dynamic>> sugestoes = [
-    {'nome': 'Mariana Silva', 'usuario': '@mari_silva', 'nivel': 2, 'estado': 'normal'},
-    {'nome': 'Roberto Gomes', 'usuario': '@beto_g', 'nivel': 5, 'estado': 'normal'},
-    {'nome': 'Camila Costa', 'usuario': '@camila.c', 'nivel': 1, 'estado': 'normal'},
+    {'nome': 'Laryssa Silva', 'usuario': '@Lary', 'nivel': 2, 'estado': 'normal'},
+    {'nome': 'Maria Luiza', 'usuario': '@Malu', 'nivel': 5, 'estado': 'normal'},
+    {'nome': 'Cristofer', 'usuario': '@Mochilão', 'nivel': 1, 'estado': 'normal'},
   ];
 
   @override

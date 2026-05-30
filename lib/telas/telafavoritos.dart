@@ -28,6 +28,7 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
     _carregarFavoritos();
   }
 
+  // Backend: Esta função deverá ser substituída por uma chamada GET à API para buscar os favoritos do usuário logado
   Future<void> _carregarFavoritos() async {
     final prefs = await SharedPreferences.getInstance();
     final stringFavoritos = prefs.getString('lista_favoritos');
@@ -39,6 +40,7 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
         carregando = false;
       });
     } else {
+      // MOCK DE DADOS CASO SEJA A PRIMEIRA VEZ
       setState(() {
         favoritos = [
           {
@@ -72,6 +74,7 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
     }
   }
 
+  // Backend: Substituir por chamadas PUT/POST na API ao atualizar listas localmente
   Future<void> _salvarFavoritos() async {
     final prefs = await SharedPreferences.getInstance();
     final stringFavoritos = jsonEncode(favoritos);
@@ -85,6 +88,8 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
     );
   }
 
+  // --- AÇÃO DO BOTÃO: REMOVER FAVORITO (Lixeira) ---
+  // Backend: Deverá disparar uma requisição DELETE passando o ID do favorito
   void _removerFavorito(int index) async {
     setState(() {
       favoritos.removeAt(index);
@@ -93,7 +98,8 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
     _mostrarAviso('Favorito removido da lista');
   }
 
-  // MODIFICADO: Agora recebe o destino E o modo de transporte escolhido!
+  // --- AÇÃO DO BOTÃO PRINCIPAL: INICIAR ROTA DIRETA ---
+  // Backend: Injeta os dados 'destino' e 'modo' no ecrã de navegação
   void _iniciarRotaDireta(String destino, String modo) {
     _mostrarAviso('Iniciando rota segura para $destino...');
     
@@ -130,6 +136,7 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
                   children: [
                     Row(
                       children: [
+                        // --- BOTÃO: VOLTAR ---
                         InkWell(
                           onTap: () {
                             Navigator.pop(context);
@@ -175,6 +182,9 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
                       ],
                     ),
                     const SizedBox(height: 10),
+                    
+                    // --- CAMPO DE BUSCA (FILTRAR FAVORITOS) ---
+                    // Backend: Pode acionar busca/filtro local ou na API
                     Container(
                       height: 36,
                       decoration: BoxDecoration(
@@ -237,6 +247,8 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
                             color: const Color(0xFF5B189A),
                           ),
                           const Spacer(),
+                          
+                          // --- BOTÃO: ADICIONAR NOVO FAVORITO (+) ---
                           InkWell(
                             onTap: () async {
                               final novoFavorito = await Navigator.push(
@@ -281,6 +293,7 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
                           ),
                         )
                       else
+                        // LOOP RENDERIZANDO OS CARDS DE FAVORITOS
                         for (int i = 0; i < favoritos.length; i++) ...[
                           _CardFavorito(
                             titulo: favoritos[i]['titulo']!,
@@ -291,7 +304,6 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
                             segura: favoritos[i]['segura']!,
                             onDetalhes: () => _mostrarAviso('Abrindo detalhes de ${favoritos[i]['titulo']}...'),
                             onExcluir: () => _removerFavorito(i),
-                            // Agora passa a string do modo escolhido na chamada
                             onIniciar: (String modo) => _iniciarRotaDireta(favoritos[i]['titulo']!, modo), 
                           ),
                           const SizedBox(height: 14),
@@ -308,7 +320,6 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
   }
 }
 
-// MODIFICADO: Agora é um StatefulWidget para guardar qual modo foi clicado neste card específico
 class _CardFavorito extends StatefulWidget {
   final String titulo;
   final String categoria;
@@ -317,7 +328,7 @@ class _CardFavorito extends StatefulWidget {
   final String avaliacao;
   final String segura;
   final VoidCallback onExcluir;
-  final Function(String modo) onIniciar; // Função atualizada para exigir a string do transporte
+  final Function(String modo) onIniciar; 
   final VoidCallback onDetalhes;
 
   const _CardFavorito({
@@ -340,7 +351,7 @@ class _CardFavoritoState extends State<_CardFavorito> {
   // Guarda a seleção local deste card. Padrão: carro
   String _modoSelecionado = 'carro';
 
-  // Componente interno para desenhar as bolinhas de transporte
+  // --- BOTÃO: SELETOR DE MODO DE TRANSPORTE DO CARD ---
   Widget _botaoModo(IconData icone, String modo) {
     bool selecionado = _modoSelecionado == modo;
     return GestureDetector(
@@ -401,6 +412,7 @@ class _CardFavoritoState extends State<_CardFavorito> {
                   ),
                 ),
                 const Spacer(),
+                // --- BOTÃO: APAGAR FAVORITO (LIXEIRA NO CARD) ---
                 InkWell(
                   onTap: widget.onExcluir,
                   child: const Padding(
@@ -416,6 +428,8 @@ class _CardFavoritoState extends State<_CardFavorito> {
             ),
           ),
 
+          // --- BOTÃO INVISÍVEL: ABRIR DETALHES DO LOCAL (Clique no meio do card) ---
+          // Backend: Pode buscar detalhes do local via ID na API
           InkWell(
             onTap: widget.onDetalhes,
             child: Padding(
@@ -427,6 +441,7 @@ class _CardFavoritoState extends State<_CardFavorito> {
                     height: 108,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8),
+                      // Backend: No futuro, a imagem do Card deverá vir da API via NetworkImage
                       image: const DecorationImage(
                         image: AssetImage('assets/images/escola_epsa.jpg'),
                         fit: BoxFit.cover,
@@ -496,7 +511,6 @@ class _CardFavoritoState extends State<_CardFavorito> {
                     ],
                   ),
                   
-                  // NOVO: Seletores de Transporte
                   const SizedBox(height: 14),
                   const Text(
                     "Como pretende deslocar-se?",
@@ -514,11 +528,11 @@ class _CardFavoritoState extends State<_CardFavorito> {
                   ),
                   const SizedBox(height: 12),
 
+                  // --- BOTÃO PRINCIPAL DO CARD: INICIAR ROTA ---
                   SizedBox(
                     width: double.infinity,
                     height: 38,
                     child: ElevatedButton.icon(
-                      // Passa a escolha atual do usuário de volta para a função principal
                       onPressed: () => widget.onIniciar(_modoSelecionado),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,

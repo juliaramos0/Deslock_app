@@ -13,6 +13,7 @@ class _TelaAvaliacaoRotaState extends State<TelaAvaliacaoRota> {
   final Set<String> _tagsSelecionadas = {};
 
   // Lista de tags rápidas para facilitar o feedback do usuário
+  // Backend: No futuro, essa lista pode vir diretamente da API do servidor (GET)
   final List<String> _tagsDisponiveis = [
     'Bem iluminada',
     'Movimentada',
@@ -36,6 +37,8 @@ class _TelaAvaliacaoRotaState extends State<TelaAvaliacaoRota> {
     super.dispose();
   }
 
+  // --- AÇÃO DO BOTÃO PRINCIPAL: ENVIAR AVALIAÇÃO ---
+  // Backend: Esta é a função principal de integração desta tela.
   void _enviarAvaliacao() {
     if (_estrelas == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -44,7 +47,11 @@ class _TelaAvaliacaoRotaState extends State<TelaAvaliacaoRota> {
       return;
     }
 
-    // Aqui no futuro os dados (_estrelas, _tagsSelecionadas, comentário) vão pro backend.
+    // Backend: Aqui deve ser feita a requisição POST para a API salvando a avaliação da rota.
+    // Variáveis a serem enviadas no corpo (body) da requisição:
+    // 1. _estrelas (Inteiro de 1 a 5)
+    // 2. _tagsSelecionadas.toList() (Lista de Strings com as características marcadas)
+    // 3. _comentarioController.text (String com o feedback opcional do usuário)
     
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Avaliação enviada! Obrigado por ajudar a comunidade.')),
@@ -65,6 +72,8 @@ class _TelaAvaliacaoRotaState extends State<TelaAvaliacaoRota> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
+            // --- BOTÃO: FECHAR (X) ---
+            // Backend: Apenas fecha a tela ignorando o envio da avaliação (Skip)
             icon: const Icon(Icons.close, color: Colors.white),
             onPressed: () => Navigator.pop(context), 
           ),
@@ -118,11 +127,15 @@ class _TelaAvaliacaoRotaState extends State<TelaAvaliacaoRota> {
                 ),
                 const SizedBox(height: 32),
 
+                // ==========================================
                 // SISTEMA DE ESTRELAS
+                // ==========================================
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: List.generate(5, (index) {
                     return IconButton(
+                      // --- BOTÃO: SELEÇÃO DE ESTRELA ---
+                      // Backend: Atualiza o estado da nota da rota (1 a 5)
                       iconSize: 48,
                       icon: Icon(
                         index < _estrelas ? Icons.star : Icons.star_border,
@@ -138,7 +151,9 @@ class _TelaAvaliacaoRotaState extends State<TelaAvaliacaoRota> {
                 ),
                 const SizedBox(height: 32),
 
+                // ==========================================
                 // TAGS RÁPIDAS
+                // ==========================================
                 const Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
@@ -157,6 +172,8 @@ class _TelaAvaliacaoRotaState extends State<TelaAvaliacaoRota> {
                   children: _tagsDisponiveis.map((tag) {
                     final selecionada = _tagsSelecionadas.contains(tag);
                     return GestureDetector(
+                      // --- BOTÃO: SELEÇÃO DE TAG ---
+                      // Backend: Insere ou remove a tag atual no Set _tagsSelecionadas
                       onTap: () {
                         setState(() {
                           if (selecionada) {
@@ -192,7 +209,9 @@ class _TelaAvaliacaoRotaState extends State<TelaAvaliacaoRota> {
                 ),
                 const SizedBox(height: 32),
 
+                // ==========================================
                 // COMENTÁRIO OPCIONAL
+                // ==========================================
                 const Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
@@ -205,6 +224,8 @@ class _TelaAvaliacaoRotaState extends State<TelaAvaliacaoRota> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                // --- CAMPO DE TEXTO: FEEDBACK ---
+                // Backend: Captura o input em texto livre para o banco de dados
                 TextField(
                   controller: _comentarioController,
                   maxLines: 3,
@@ -222,7 +243,9 @@ class _TelaAvaliacaoRotaState extends State<TelaAvaliacaoRota> {
                 ),
                 const SizedBox(height: 40),
 
+                // ==========================================
                 // BOTÃO DE ENVIAR AVALIAÇÃO
+                // ==========================================
                 Container(
                   width: double.infinity,
                   height: 50,
@@ -230,6 +253,8 @@ class _TelaAvaliacaoRotaState extends State<TelaAvaliacaoRota> {
                     gradient: _gradienteDourado,
                     borderRadius: BorderRadius.circular(25),
                   ),
+                  // --- BOTÃO PRINCIPAL: ENVIAR ---
+                  // Backend: Aciona a função _enviarAvaliacao() descrita no topo do arquivo
                   child: ElevatedButton(
                     onPressed: _enviarAvaliacao,
                     style: ElevatedButton.styleFrom(
