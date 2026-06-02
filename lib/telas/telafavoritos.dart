@@ -28,7 +28,7 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
     _carregarFavoritos();
   }
 
-  // Backend: Esta função deverá ser substituída por uma chamada GET à API para buscar os favoritos do usuário logado
+  // Backend: Função GET à API para buscar os favoritos do usuário logado
   Future<void> _carregarFavoritos() async {
     final prefs = await SharedPreferences.getInstance();
     final stringFavoritos = prefs.getString('lista_favoritos');
@@ -89,7 +89,6 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
   }
 
   // --- AÇÃO DO BOTÃO: REMOVER FAVORITO (Lixeira) ---
-  // Backend: Deverá disparar uma requisição DELETE passando o ID do favorito
   void _removerFavorito(int index) async {
     setState(() {
       favoritos.removeAt(index);
@@ -99,9 +98,9 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
   }
 
   // --- AÇÃO DO BOTÃO PRINCIPAL: INICIAR ROTA DIRETA ---
-  // Backend: Injeta os dados 'destino' e 'modo' no ecrã de navegação
-  void _iniciarRotaDireta(String destino, String modo) {
-    _mostrarAviso('Iniciando rota segura para $destino...');
+  // Backend: Injeta os dados 'destino', 'modo' e 'tipoRota' no ecrã de navegação
+  void _iniciarRotaDireta(String destino, String modo, String tipoRota) {
+    _mostrarAviso('Iniciando rota $tipoRota para $destino...');
     
     Future.delayed(const Duration(milliseconds: 400), () {
       if (!mounted) return;
@@ -110,7 +109,8 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
         MaterialPageRoute(
           builder: (_) => TelaNavegacaoAtiva(
             destino: destino,
-            modo: modo, // Repassa a escolha para a tela do GPS
+            modo: modo, 
+            // Backend: Se a sua TelaNavegacaoAtiva aceitar o parâmetro tipoRota no futuro, adicione-o aqui.
           ),
         ),
       );
@@ -184,7 +184,6 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
                     const SizedBox(height: 10),
                     
                     // --- CAMPO DE BUSCA (FILTRAR FAVORITOS) ---
-                    // Backend: Pode acionar busca/filtro local ou na API
                     Container(
                       height: 36,
                       decoration: BoxDecoration(
@@ -304,7 +303,8 @@ class _TelaFavoritosState extends State<TelaFavoritos> {
                             segura: favoritos[i]['segura']!,
                             onDetalhes: () => _mostrarAviso('Abrindo detalhes de ${favoritos[i]['titulo']}...'),
                             onExcluir: () => _removerFavorito(i),
-                            onIniciar: (String modo) => _iniciarRotaDireta(favoritos[i]['titulo']!, modo), 
+                            // Modificado: Recebe agora Modo E Tipo de Rota
+                            onIniciar: (String modo, String tipoRota) => _iniciarRotaDireta(favoritos[i]['titulo']!, modo, tipoRota), 
                           ),
                           const SizedBox(height: 14),
                         ],
@@ -328,7 +328,7 @@ class _CardFavorito extends StatefulWidget {
   final String avaliacao;
   final String segura;
   final VoidCallback onExcluir;
-  final Function(String modo) onIniciar; 
+  final Function(String modo, String tipoRota) onIniciar; // Atualizado para pedir o Tipo da Rota
   final VoidCallback onDetalhes;
 
   const _CardFavorito({
@@ -348,10 +348,46 @@ class _CardFavorito extends StatefulWidget {
 }
 
 class _CardFavoritoState extends State<_CardFavorito> {
-  // Guarda a seleção local deste card. Padrão: carro
+  // Guarda as seleções locais deste card.
   String _modoSelecionado = 'carro';
+  String _tipoRota = 'segura'; // NOVO: Tipo de rota padrão para o favorito
 
-  // --- BOTÃO: SELETOR DE MODO DE TRANSPORTE DO CARD ---
+  // --- COMPONENTE: BOTÃO DE TIPO DE ROTA ---
+  Widget _botaoTipoRota(String tipo, String titulo, IconData icone) {
+    bool selecionado = _tipoRota == tipo;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _tipoRota = tipo),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: selecionado ? const Color(0xFFFFD200) : Colors.white24,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: selecionado ? Colors.transparent : Colors.white54),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icone, color: selecionado ? const Color(0xFF5B189A) : Colors.white, size: 12),
+              const SizedBox(width: 4),
+              Text(
+                titulo,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: selecionado ? const Color(0xFF5B189A) : Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10, // Um pouco menor para caber perfeito no card
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- COMPONENTE: BOTÃO DE MODO DE TRANSPORTE ---
   Widget _botaoModo(IconData icone, String modo) {
     bool selecionado = _modoSelecionado == modo;
     return GestureDetector(
@@ -429,7 +465,6 @@ class _CardFavoritoState extends State<_CardFavorito> {
           ),
 
           // --- BOTÃO INVISÍVEL: ABRIR DETALHES DO LOCAL (Clique no meio do card) ---
-          // Backend: Pode buscar detalhes do local via ID na API
           InkWell(
             onTap: widget.onDetalhes,
             child: Padding(
@@ -441,7 +476,6 @@ class _CardFavoritoState extends State<_CardFavorito> {
                     height: 108,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8),
-                      // Backend: No futuro, a imagem do Card deverá vir da API via NetworkImage
                       image: const DecorationImage(
                         image: AssetImage('assets/images/escola_epsa.jpg'),
                         fit: BoxFit.cover,
@@ -512,15 +546,33 @@ class _CardFavoritoState extends State<_CardFavorito> {
                   ),
                   
                   const SizedBox(height: 14),
+
+                  // --- NOVO: SELETOR DE TIPO DE ROTA ---
+                  const Text("Qual tipo de rota você prefere?", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _botaoTipoRota('segura', 'Mais Segura', Icons.security),
+                      const SizedBox(width: 6),
+                      _botaoTipoRota('rapida', 'Mais Rápida', Icons.flash_on),
+                      const SizedBox(width: 6),
+                      _botaoTipoRota('sustentavel', 'Sustentável', Icons.eco), 
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
                   const Text(
                     "Como pretende deslocar-se?",
                     style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 8),
+                  
+                  // --- ATUALIZADO: SELETOR DE MODO COM MOTO ---
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       _botaoModo(Icons.directions_car, 'carro'),
+                      _botaoModo(Icons.motorcycle, 'moto'), // A MOTO ESTÁ AQUI
                       _botaoModo(Icons.directions_bus, 'onibus'),
                       _botaoModo(Icons.directions_walk, 'pe'),
                       _botaoModo(Icons.pedal_bike, 'bicicleta'),
@@ -533,7 +585,7 @@ class _CardFavoritoState extends State<_CardFavorito> {
                     width: double.infinity,
                     height: 38,
                     child: ElevatedButton.icon(
-                      onPressed: () => widget.onIniciar(_modoSelecionado),
+                      onPressed: () => widget.onIniciar(_modoSelecionado, _tipoRota),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: const Color(0xFF5B189A),

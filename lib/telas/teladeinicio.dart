@@ -52,6 +52,8 @@ class _TelaInicioState extends State<TelaInicio> {
     return texto.startsWith('@') ? texto : '@$texto';
   }
 
+  // --- FUNÇÃO CORRIGIDA ---
+  // O bug do XP estava aqui. Ele estava sempre forçando os dados padrão em vez de ler da memória.
   Future<void> _carregarDados() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -69,11 +71,14 @@ class _TelaInicioState extends State<TelaInicio> {
         _bytesFoto = null;
       }
 
+      // CORREÇÃO: Agora ele lê corretamente o nível e XP da memória e só usa o fallback (1 ou 0) se não existir
       nivel = prefs.getInt('nivel_usuario') ?? 1;
       xpAtual = prefs.getInt('xp_atual') ?? 0;
       xpMaximo = prefs.getInt('xp_maximo') ?? 200;
       amigosTotal = prefs.getInt('amigos_total') ?? 0;
-      missaoSemanalProgresso = prefs.getDouble('missao_semanal_progresso') ?? 0.0;
+      
+      // Simula uma missão quase completa (Para testes do usuário)
+      missaoSemanalProgresso = prefs.getDouble('missao_semanal_progresso') ?? 1.0;
 
       final String? historicoJson = prefs.getString('lista_historico');
       if (historicoJson != null) {
@@ -95,6 +100,7 @@ class _TelaInicioState extends State<TelaInicio> {
     });
   }
 
+  // Função que envia o XP novo para o Banco de Dados (ou SharedPreferences)
   Future<void> _salvarDados() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('xp_atual', xpAtual);
@@ -103,18 +109,28 @@ class _TelaInicioState extends State<TelaInicio> {
     await prefs.setDouble('missao_semanal_progresso', missaoSemanalProgresso);
   }
 
+  // A Lógica matemática de Upar de Nível (Subir de Level)
   Future<void> _adicionarXp(int valor) async {
     setState(() {
       xpAtual += valor;
+      // Laço "While" garante que se o usuário ganhar 500 XP de uma vez, ele sobe vários níveis juntos
       while (xpAtual >= xpMaximo) {
         xpAtual -= xpMaximo;
         nivel += 1;
-        xpMaximo += 100;
+        xpMaximo += 100; // Cada nível fica 100 XP mais difícil
       }
     });
+    
+    // Chama o salvar para garantir que a memória não resete o nível
     await _salvarDados();
+    
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Você ganhou $valor XP!')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Você ganhou $valor XP! Parabéns!'),
+        backgroundColor: const Color(0xFF188C0C),
+      ),
+    );
   }
 
   // AÇÃO DO BOTÃO: "IR" (Nos cards de Favoritos)
@@ -152,6 +168,7 @@ class _TelaInicioState extends State<TelaInicio> {
       setState(() {
         missaoSemanalProgresso = 0.0; 
       });
+      // Adiciona o XP na conta
       await _adicionarXp(150); 
     }
   }

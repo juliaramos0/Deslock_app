@@ -66,7 +66,6 @@ class _TelaRotasState extends State<TelaRotas> {
   }
 
   // --- AÇÃO DO EVENTO: PESQUISAR DESTINO ---
-  // Backend: Aciona a API de Geocodificação/Busca de Locais
   void _pesquisarLocal(String valor) {
     if (valor.trim().isEmpty) return;
     FocusScope.of(context).unfocus();
@@ -87,7 +86,7 @@ class _TelaRotasState extends State<TelaRotas> {
     FocusScope.of(context).unfocus();
   }
 
-  // --- COMPONENTE: BOTÃO DE TIPO DE ROTA ---
+  // --- COMPONENTE: BOTÃO DE TIPO DE ROTA (Segura, Rápida ou Sustentável) ---
   Widget _botaoTipoRota(String tipo, String titulo, IconData icone) {
     bool selecionado = _tipoRota == tipo;
     return Expanded(
@@ -250,9 +249,6 @@ class _TelaRotasState extends State<TelaRotas> {
                                       Expanded(
                                         child: Column(
                                           children: [
-                                            // --- CAMPO: PONTO DE PARTIDA (ATUALIZADO) ---
-                                            // Backend: Se o texto for "Sua localização atual", puxe Lat/Lng do GPS via Geolocation. 
-                                            // Se for qualquer outra string, use API de Geocoding para converter texto em coordenadas.
                                             SizedBox(
                                               height: 30,
                                               child: TextField(
@@ -264,7 +260,6 @@ class _TelaRotasState extends State<TelaRotas> {
                                                   border: InputBorder.none,
                                                   isDense: true,
                                                   contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                                                  // --- BOTÃO: USAR GPS ATUAL ---
                                                   suffixIcon: IconButton(
                                                     padding: EdgeInsets.zero,
                                                     constraints: const BoxConstraints(),
@@ -280,7 +275,6 @@ class _TelaRotasState extends State<TelaRotas> {
                                               ),
                                             ),
                                             const Divider(height: 10, color: Colors.black12),
-                                            // --- CAMPO: DESTINO ---
                                             SizedBox(
                                               height: 30,
                                               child: TextField(
@@ -320,7 +314,7 @@ class _TelaRotasState extends State<TelaRotas> {
                 duration: const Duration(milliseconds: 500),
                 curve: Curves.easeOutQuart,
                 right: 16,
-                bottom: _mostrarCardDestino ? 420 : 100, 
+                bottom: _mostrarCardDestino ? 460 : 100, // Ajustado para não sobrepor com o card maior
                 child: FloatingActionButton(
                   heroTag: 'btn_gps',
                   onPressed: () => _mostrarAviso('Centralizando mapa na sua localização...'),
@@ -363,7 +357,11 @@ class _TelaRotasState extends State<TelaRotas> {
                       ),
                       const SizedBox(height: 14),
   
-                      // SELETOR DO TIPO DE ROTA
+                      // --- NOVO: MENSAGEM DO TIPO DE ROTA ---
+                      const Text("Qual tipo de rota você prefere?", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 8),
+
+                      // SELETOR TRIPLO DO TIPO DE ROTA
                       Row(
                         children: [
                           _botaoTipoRota('segura', 'Mais Segura', Icons.security),
